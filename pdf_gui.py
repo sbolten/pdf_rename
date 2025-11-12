@@ -89,11 +89,12 @@ class PDFProcessorGUI(QWidget):
 
     def handle_stdout(self):
         data = self.process.readAllStandardOutput().data().decode('utf-8')
-        self.output_text.append(data.strip())
-        # Einfache Fortschrittsanzeige basierend auf Zeilenumbrüchen
-        # Dies ist eine grobe Schätzung und kann verbessert werden
+        # Füge jede Zeile einzeln hinzu, um die Formatierung zu erhalten
         lines = data.strip().split('\n')
         for line in lines:
+            self.output_text.append(line)
+            # Einfache Fortschrittsanzeige basierend auf Zeilenumbrüchen
+            # Dies ist eine grobe Schätzung und kann verbessert werden
             if "--- Verarbeite PDF:" in line:
                 self.progress_bar.setValue(self.progress_bar.value() + 1) # Erhöhe den Fortschritt für jede neue PDF-Verarbeitung
 
