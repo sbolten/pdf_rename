@@ -92,7 +92,11 @@ class PDFProcessorGUI(QWidget):
             self.reset_ui()
             return
 
-        self.process.start(sys.executable, [script_path, pdf_dir])
+        # Setze PYTHONUNBUFFERED=1, um die Ausgabe sofort zu erhalten
+        environment = os.environ.copy()
+        environment["PYTHONUNBUFFERED"] = "1"
+
+        self.process.start(sys.executable, [script_path, pdf_dir], environment=environment)
 
     def handle_stdout(self):
         data = self.process.readAllStandardOutput().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
