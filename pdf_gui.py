@@ -17,6 +17,8 @@ class PDFProcessorGUI(QWidget):
         self.setGeometry(100, 100, 800, 600)
 
         self.process = None
+        self.total_pdfs = 0 # Variable zur Speicherung der Gesamtzahl der PDFs
+        self.processed_pdfs = 0 # Variable zur Speicherung der bereits verarbeiteten PDFs
         self.init_ui()
 
     def init_ui(self):
@@ -64,7 +66,11 @@ class PDFProcessorGUI(QWidget):
         directory = QFileDialog.getExistingDirectory(self, "Wählen Sie das PDF-Verzeichnis")
         if directory:
             self.dir_input.setText(directory)
-            self.start_button.setEnabled(True) # Aktiviert den Start-Button, wenn ein Verzeichnis ausgewählt wurde
+            # Überprüfe, ob das Verzeichnis existiert, bevor der Start-Button aktiviert wird
+            if os.path.isdir(directory):
+                self.start_button.setEnabled(True)
+            else:
+                self.start_button.setEnabled(False)
 
     def start_processing(self):
         pdf_dir = self.dir_input.text()
@@ -78,6 +84,21 @@ class PDFProcessorGUI(QWidget):
         self.browse_button.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
+
+        # Ermittle die Gesamtzahl der PDFs im Verzeichnis
+        try:
+            pdf_files = list(pathlib.Path(pdf_dir).glob("*.pdf"))
+            self.total_pdfs = len(pdf_files)
+            if self.total_pdfs == 0:
+                self.output_text.append("<font color='orange'>Warnung: Keine PDF-Dateien im ausgewählten Verzeichnis gefunden.</font>")
+                self.reset_ui()
+                return
+            self.progress_bar.setMaximum(self.total_pdfs)
+            self.processed_pdfs = 0 # Setze den Zähler zurück
+        except Exception as e:
+            self.output_text.append(f"<font color='red'>Fehler beim Zählen der PDF-Dateien: {e}</font>")
+            self.reset_ui()
+            return
 
         # Führe das pdf.py Skript in einem separaten Prozess aus
         self.process = QProcess(self)
@@ -93,7 +114,6 @@ class PDFProcessorGUI(QWidget):
             return
 
         # Setze PYTHONUNBUFFERED=1, um die Ausgabe sofort zu erhalten
-        # Dies muss vor dem Starten des Prozesses geschehen
         os.environ["PYTHONUNBUFFERED"] = "1"
 
         self.process.start(sys.executable, [script_path, pdf_dir])
@@ -104,10 +124,10 @@ class PDFProcessorGUI(QWidget):
         lines = data.strip().split('\n')
         for line in lines:
             self.output_text.append(line)
-            # Einfache Fortschrittsanzeige basierend auf Zeilenumbrüchen
-            # Dies ist eine grobe Schätzung und kann verbessert werden
-            if "--- Verarbeite PDF:" in line:
-                self.progress_bar.setValue(self.progress_bar.value() + 1) # Erhöhe den Fortschritt für jede neue PDF-Verarbeitung
+            # Überprüfe, ob die Zeile anzeigt, dass eine PDF-Datei erfolgreich verarbeitet wurde
+            if "Erfolgreich umbenannt und gespeichert in:" in line or "Speichern für" in line and "fehlgeschlagen" not in line:
+                self.processed_pdfs += 1
+                self.progress_bar.setValue(self.processed_pdfs)
 
     def handle_stderr(self):
         data = self.process.readAllStandardError().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
@@ -125,6 +145,8 @@ class PDFProcessorGUI(QWidget):
         self.browse_button.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
+        self.total_pdfs = 0
+        self.processed_pdfs = 0
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
