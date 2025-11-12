@@ -28,6 +28,8 @@ class PDFProcessorGUI(QWidget):
         config_group_box = QGroupBox("Konfiguration")
         config_layout = QFormLayout()
 
+        # Verzeichnisauswahl als eigene Zeile mit QHBoxLayout
+        pdf_dir_row_layout = QHBoxLayout()
         self.pdf_dir_label = QLabel("PDF Verzeichnis:")
         self.pdf_dir_input = QLineEdit()
         default_pdf_dir = r"C:/Users/steph/Documents/dev/python_ai/pdf"
@@ -36,7 +38,11 @@ class PDFProcessorGUI(QWidget):
         self.browse_pdf_dir_button = QPushButton("Durchsuchen...")
         self.browse_pdf_dir_button.clicked.connect(self.browse_directory)
         
-        config_layout.addRow(self.pdf_dir_label, self.pdf_dir_input, self.browse_pdf_dir_button)
+        pdf_dir_row_layout.addWidget(self.pdf_dir_input)
+        pdf_dir_row_layout.addWidget(self.browse_pdf_dir_button)
+        
+        # Füge die gesamte Zeile zum Formularlayout hinzu
+        config_layout.addRow(self.pdf_dir_label, pdf_dir_row_layout)
 
         self.target_url_label = QLabel("Target URL:")
         self.target_url_input = QLineEdit()
