@@ -10,16 +10,24 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QProcess
 
+# Importiere die neue ConfigManager-Klasse
+from config_manager import ConfigManager
+
 class PDFProcessorGUI(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PDF Organizer & Renamer")
-        self.setGeometry(100, 100, 800, 700) # Erhöhte Höhe für den neuen Bereich
+        self.setGeometry(100, 100, 800, 750) # Erhöhte Höhe für den neuen Bereich
 
         self.process = None
         self.total_pdfs = 0
         self.processed_pdfs = 0
+        
+        # Initialisiere den Konfigurationsmanager
+        self.config_manager = ConfigManager()
+        
         self.init_ui()
+        self.load_initial_config() # Lade die Konfiguration beim Start
 
     def init_ui(self):
         main_layout = QVBoxLayout()
@@ -32,8 +40,7 @@ class PDFProcessorGUI(QWidget):
         pdf_dir_row_layout = QHBoxLayout()
         self.pdf_dir_label = QLabel("PDF Verzeichnis:")
         self.pdf_dir_input = QLineEdit()
-        default_pdf_dir = r"C:/Users/steph/Documents/dev/python_ai/pdf"
-        self.pdf_dir_input.setText(default_pdf_dir)
+        # Standardwert wird jetzt von ConfigManager gesetzt
         self.pdf_dir_input.setPlaceholderText("Wählen Sie ein Verzeichnis mit PDF-Dateien")
         self.browse_pdf_dir_button = QPushButton("Durchsuchen...")
         self.browse_pdf_dir_button.clicked.connect(self.browse_directory)
@@ -41,18 +48,15 @@ class PDFProcessorGUI(QWidget):
         pdf_dir_row_layout.addWidget(self.pdf_dir_input)
         pdf_dir_row_layout.addWidget(self.browse_pdf_dir_button)
         
-        # Füge die gesamte Zeile zum Formularlayout hinzu
         config_layout.addRow(self.pdf_dir_label, pdf_dir_row_layout)
 
         self.target_url_label = QLabel("Target URL:")
         self.target_url_input = QLineEdit()
-        self.target_url_input.setText("http://127.0.0.1:1234/v1") # Standardwert
         self.target_url_input.setPlaceholderText("URL des LLM-Servers")
         config_layout.addRow(self.target_url_label, self.target_url_input)
 
         self.model_name_label = QLabel("Modellname:")
         self.model_name_input = QLineEdit()
-        self.model_name_input.setText("Qwen/Qwen3-V1-8B") # Standardwert
         self.model_name_input.setPlaceholderText("Name des zu verwendenden LLM-Modells")
         config_layout.addRow(self.model_name_label, self.model_name_input)
 
@@ -60,17 +64,20 @@ class PDFProcessorGUI(QWidget):
         self.prompt_input = QTextEdit()
         self.prompt_input.setPlaceholderText("Vorlage für den Prompt an das LLM")
         self.prompt_input.setFixedHeight(100) # Feste Höhe für das Textfeld
-        # Standard-Prompt (kann angepasst werden)
-        self.prompt_input.setText(
-            "Analysiere dieses Dokument. Der ursprüngliche Dateiname war: "
-            f"'{{original_filename}}'. Nutze diesen Namen als zusätzlichen Hinweis. "
-            "Deine einzige Aufgabe ist es, ZWEI Informationen durch ein Pipe-Zeichen '|' getrennt auszugeben: "
-            "1. Den Dateinamen im Format 'YYYYMMDD_<inhalt>' mit detailliertem Kontext (Namen, Betreff, Firma, Projekt, etc.). "
-            "2. Einen Steuermarker. Entscheide basierend auf den Schweizer Kriterien für Privatpersonen mit Stockwerkeigentum (z.B. berufsbedingte Kosten, Kinderbetreuungskosten, Schuldzinsen, Unterhaltskosten für die Liegenschaft, 3a-Vorsorgebeiträge), ob das Dokument für die Steuererklärung relevant ist. Gib 'STEUER_JA' oder 'STEUER_NEIN' aus. "
-            "Du darfst NUR diese beiden Informationen, durch das Pipe-Zeichen getrennt, ausgeben, keine Erklärung. "
-            "Beispielausgabe: 20240315_Hauswartrechnung_Stockwerkeigentum_Mai|STEUER_JA"
-        )
         config_layout.addRow(self.prompt_label, self.prompt_input)
+
+        # --- Konfigurations-Buttons ---
+        config_buttons_layout = QHBoxLayout()
+        self.save_config_button = QPushButton("Konfiguration speichern")
+        self.save_config_button.clicked.connect(self.save_current_config)
+        self.load_config_button = QPushButton("Konfiguration laden")
+        self.load_config_button.clicked.connect(self.load_config_from_gui)
+        
+        config_buttons_layout.addWidget(self.save_config_button)
+        config_buttons_layout.addWidget(self.load_config_button)
+        
+        # Füge die Buttons unterhalb der Formularfelder hinzu
+        config_layout.addRow(QLabel(""), config_buttons_layout) # Leeres Label für Ausrichtung
 
         config_group_box.setLayout(config_layout)
         main_layout.addWidget(config_group_box)
@@ -97,6 +104,49 @@ class PDFProcessorGUI(QWidget):
         main_layout.addWidget(self.output_text)
 
         self.setLayout(main_layout)
+
+    def load_initial_config(self):
+        """Lädt die Konfiguration beim Start der Anwendung und wendet sie auf die GUI an."""
+        self.config_manager.apply_config_to_gui(
+            self.pdf_dir_input,
+            self.target_url_input,
+            self.model_name_input,
+            self.prompt_input
+        )
+        # Überprüfe und aktiviere den Start-Button basierend auf dem geladenen Verzeichnis
+        if os.path.isdir(self.pdf_dir_input.text()):
+            self.start_button.setEnabled(True)
+        else:
+            self.start_button.setEnabled(False)
+
+    def save_current_config(self):
+        """Speichert die aktuellen GUI-Einstellungen in die Konfigurationsdatei."""
+        self.config_manager.update_config_from_gui(
+            self.pdf_dir_input,
+            self.target_url_input,
+            self.model_name_input,
+            self.prompt_input
+        )
+        if self.config_manager.save_config(self.config_manager.get_current_config()):
+            self.output_text.append("<font color='green'>Konfiguration erfolgreich gespeichert.</font>")
+        else:
+            self.output_text.append("<font color='red'>Fehler beim Speichern der Konfiguration.</font>")
+
+    def load_config_from_gui(self):
+        """Lädt die Konfiguration aus der Datei und wendet sie auf die GUI an."""
+        self.config_manager.load_config() # Lädt die Konfiguration neu
+        self.config_manager.apply_config_to_gui(
+            self.pdf_dir_input,
+            self.target_url_input,
+            self.model_name_input,
+            self.prompt_input
+        )
+        self.output_text.append("<font color='blue'>Konfiguration geladen.</font>")
+        # Überprüfe und aktiviere den Start-Button basierend auf dem geladenen Verzeichnis
+        if os.path.isdir(self.pdf_dir_input.text()):
+            self.start_button.setEnabled(True)
+        else:
+            self.start_button.setEnabled(False)
 
     def browse_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Wählen Sie das PDF-Verzeichnis")
@@ -137,6 +187,8 @@ class PDFProcessorGUI(QWidget):
         self.target_url_input.setEnabled(False)
         self.model_name_input.setEnabled(False)
         self.prompt_input.setEnabled(False)
+        self.save_config_button.setEnabled(False) # Deaktiviere Buttons während der Verarbeitung
+        self.load_config_button.setEnabled(False)
 
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -212,6 +264,8 @@ class PDFProcessorGUI(QWidget):
         self.target_url_input.setEnabled(True)
         self.model_name_input.setEnabled(True)
         self.prompt_input.setEnabled(True)
+        self.save_config_button.setEnabled(True) # Aktiviere Buttons wieder
+        self.load_config_button.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
         self.total_pdfs = 0
