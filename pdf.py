@@ -9,6 +9,7 @@ from openai import OpenAI
 import re
 import shutil
 import random 
+import hashlib # Importiere hashlib für Checksummen
 
 # --- KONFIGURATION ---
 # Das Verzeichnis, das die PDFs enthält (als erstes Kommandozeilenargument)
@@ -49,6 +50,17 @@ def clean_filename(filename: str) -> str:
     
     return filename.lower()
 
+def generate_checksum(file_path: pathlib.Path) -> str:
+    """Generiert eine SHA256-Checksumme für eine Datei."""
+    hasher = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        while True:
+            chunk = f.read(4096) # Lies in Chunks, um Speicher zu sparen
+            if not chunk:
+                break
+            hasher.update(chunk)
+    return hasher.hexdigest()[:10] # Nimm die ersten 10 Zeichen für eine kürzere Checksumme
+
 def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
     """Sendet die Base64-kodierte Bilddaten und den Prompt an das lokale LLM."""
     try:
@@ -87,6 +99,14 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     pdf_stem = pdf_path.stem 
     print(f"\n--- Verarbeite PDF: {pdf_path.name} ---")
     
+    # Generiere Checksumme vor der Verarbeitung
+    try:
+        checksum = generate_checksum(pdf_path)
+        print(f"  Checksumme: {checksum}")
+    except Exception as e:
+        print(f"  Fehler beim Generieren der Checksumme für {pdf_path.name}: {e}")
+        checksum = "CHECKSUMMENFEHLER" # Fallback
+
     # [PDF-Öffnen und Bild-Konvertierung (PyMuPDF)]
     try:
         doc = fitz.open(pdf_path)
@@ -154,41 +174,41 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         print(f"  Datum-Format ungültig. Verwende Fallback-Namen.")
         new_filename_base = f"UNGUELTIG_{clean_filename(pdf_path.stem)}"
         
+    # Füge die Checksumme zum neuen Dateinamen hinzu
+    final_filename_stem = f"{new_filename_base}_{checksum}"
+
     # Bestimme den Zielordner
     if marker == "STEUER_JA":
         TARGET_BASE_DIR = OUTPUT_DIR_STEUER
-        print(f"  Ergebnis: {new_filename_base}.pdf (Steuerrelevant)")
+        print(f"  Ergebnis: {final_filename_stem}.pdf (Steuerrelevant)")
     else:
         TARGET_BASE_DIR = OUTPUT_DIR_ANDERE
-        print(f"  Ergebnis: {new_filename_base}.pdf ({marker})")
+        print(f"  Ergebnis: {final_filename_stem}.pdf ({marker})")
 
     # 3. Speichern mit Kollisionsschutz
-    final_filename_stem = new_filename_base
-    final_save_successful = False
+    current_filename_stem_for_save = final_filename_stem # Verwende den Stem mit Checksumme
     
     for attempt in range(MAX_RETRIES):
-        current_filename = f"{final_filename_stem}.pdf"
+        current_filename = f"{current_filename_stem_for_save}.pdf"
         new_path = TARGET_BASE_DIR / current_filename
 
         if not new_path.exists():
             try:
                 shutil.copy2(pdf_path, new_path)
                 print(f"  Gespeichert als: {TARGET_BASE_DIR.name}/{current_filename}")
-                final_save_successful = True
-                break
+                break # Erfolgreich gespeichert, Schleife beenden
             except Exception as e:
                 print(f"  Unerwarteter Fehler beim Kopieren: {e}")
-                break
+                break # Fehler beim Kopieren, Schleife beenden
         else:
+            # Wenn die Datei mit Checksumme bereits existiert, generiere einen neuen Suffix
             rand_suffix = random.randint(100, 999) 
-            final_filename_stem = f"{new_filename_base}_{rand_suffix}"
-            print(f"  Dateiname '{current_filename}' existiert bereits. Versuche neuen Namen: '{final_filename_stem}.pdf'")
+            current_filename_stem_for_save = f"{final_filename_stem}_{rand_suffix}"
+            print(f"  Dateiname '{current_filename}' existiert bereits. Versuche neuen Namen: '{current_filename_stem_for_save}.pdf'")
             
             if attempt == MAX_RETRIES - 1:
                 print(f"  Maximale Wiederholungsversuche ({MAX_RETRIES}) erreicht. Überspringe Datei.")
-
-    if not final_save_successful:
-        print(f"  Speichern für {pdf_path.name} fehlgeschlagen nach {MAX_RETRIES} Versuchen.")
+                # Hier könnte man auch die Originaldatei mit Checksumme in ein Fehlerverzeichnis kopieren
         
     doc.close()
 
