@@ -88,7 +88,7 @@ class PDFProcessorGUI(QWidget):
         self.process.start(sys.executable, [script_path, pdf_dir])
 
     def handle_stdout(self):
-        data = self.process.readAllStandardOutput().data().decode('utf-8')
+        data = self.process.readAllStandardOutput().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
         # Füge jede Zeile einzeln hinzu, um die Formatierung zu erhalten
         lines = data.strip().split('\n')
         for line in lines:
@@ -99,7 +99,7 @@ class PDFProcessorGUI(QWidget):
                 self.progress_bar.setValue(self.progress_bar.value() + 1) # Erhöhe den Fortschritt für jede neue PDF-Verarbeitung
 
     def handle_stderr(self):
-        data = self.process.readAllStandardError().data().decode('utf-8')
+        data = self.process.readAllStandardError().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
         self.output_text.append(f"<font color='red'>{data.strip()}</font>")
 
     def handle_process_finished(self, exit_code, exit_status):
