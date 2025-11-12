@@ -26,6 +26,9 @@ class PDFProcessorGUI(QWidget):
         dir_layout = QHBoxLayout()
         self.dir_label = QLabel("PDF Verzeichnis:")
         self.dir_input = QLineEdit()
+        # Setze das Standardverzeichnis hier
+        default_pdf_dir = r"C:/Users/steph/Documents/dev/python_ai/pdf"
+        self.dir_input.setText(default_pdf_dir)
         self.dir_input.setPlaceholderText("Wählen Sie ein Verzeichnis mit PDF-Dateien")
         self.browse_button = QPushButton("Durchsuchen...")
         self.browse_button.clicked.connect(self.browse_directory)
@@ -37,7 +40,11 @@ class PDFProcessorGUI(QWidget):
         # --- Start Button ---
         self.start_button = QPushButton("Verarbeitung starten")
         self.start_button.clicked.connect(self.start_processing)
-        self.start_button.setEnabled(False) # Deaktiviert, bis ein Verzeichnis ausgewählt ist
+        # Aktiviert den Start-Button, wenn ein Verzeichnis (auch das Standard) vorhanden ist
+        if os.path.isdir(self.dir_input.text()):
+            self.start_button.setEnabled(True)
+        else:
+            self.start_button.setEnabled(False)
         layout.addWidget(self.start_button)
 
         # --- Fortschrittsanzeige ---
