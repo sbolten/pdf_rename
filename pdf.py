@@ -13,10 +13,31 @@ import hashlib # Importiere hashlib für Checksummen
 
 # --- KONFIGURATION ---
 # Das Verzeichnis, das die PDFs enthält (als erstes Kommandozeilenargument)
+# Die anderen Argumente werden jetzt dynamisch übergeben
+if len(sys.argv) < 2:
+    print("Fehler: Bitte geben Sie das PDF-Verzeichnis als erstes Argument an.")
+    sys.exit(1)
+
+PDF_DIR = pathlib.Path(sys.argv[1])
+TARGET_URL = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:1234/v1" # Standardwert, falls nicht übergeben
+MODEL_NAME = sys.argv[3] if len(sys.argv) > 3 else "Qwen/Qwen3-V1-8B" # Standardwert
+PROMPT_TEMPLATE = sys.argv[4] if len(sys.argv) > 4 else (
+    "Analysiere dieses Dokument. Der ursprüngliche Dateiname war: "
+    f"'{{original_filename}}'. Nutze diesen Namen als zusätzlichen Hinweis. "
+    "Deine einzige Aufgabe ist es, ZWEI Informationen durch ein Pipe-Zeichen '|' getrennt auszugeben: "
+    "1. Den Dateinamen im Format 'YYYYMMDD_<inhalt>' mit detailliertem Kontext (Namen, Betreff, Firma, Projekt, etc.). "
+    "2. Einen Steuermarker. Entscheide basierend auf den Schweizer Kriterien für Privatpersonen mit Stockwerkeigentum (z.B. berufsbedingte Kosten, Kinderbetreuungskosten, Schuldzinsen, Unterhaltskosten für die Liegenschaft, 3a-Vorsorgebeiträge), ob das Dokument für die Steuererklärung relevant ist. Gib 'STEUER_JA' oder 'STEUER_NEIN' aus. "
+    "Du darfst NUR diese beiden Informationen, durch das Pipe-Zeichen getrennt, ausgeben, keine Erklärung. "
+    "Beispielausgabe: 20240315_Hauswartrechnung_Stockwerkeigentum_Mai|STEUER_JA"
+) # Standardwert
+
+MAX_RETRIES = 5 
+
+# Initialisiere den OpenAI-Client für LM Studio mit den übergebenen Parametern
 try:
-    PDF_DIR = pathlib.Path(sys.argv[1])
-except IndexError:
-    print("Fehler: Bitte geben Sie den Pfad zu einem Verzeichnis als Argument an.")
+    client = OpenAI(base_url=TARGET_URL, api_key="lm-studio") 
+except Exception as e:
+    print(f"Fehler bei der Initialisierung des OpenAI-Clients: {e}")
     sys.exit(1)
 
 # ZIELVERZEICHNISSE (werden im Arbeitsverzeichnis erstellt)
@@ -27,13 +48,6 @@ OUTPUT_DIR_STEUER = PDF_DIR / "steuer_relevant"
 OUTPUT_DIR_ANDERE.mkdir(exist_ok=True)
 OUTPUT_DIR_STEUER.mkdir(exist_ok=True)
 
-# Modell- und API-Einstellungen
-LM_STUDIO_URL = "http://127.0.0.1:1234/v1" 
-MODEL_NAME = "Qwen/Qwen3-V1-8B" 
-MAX_RETRIES = 5 
-
-# Initialisiere den OpenAI-Client für LM Studio
-client = OpenAI(base_url=LM_STUDIO_URL, api_key="lm-studio") 
 
 # --- HILFSFUNKTIONEN ---
 
@@ -135,15 +149,8 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         continue
 
     # 1. ERSTELLUNG DES DYNAMISCHEN PROMPTS (mit spezifischen Schweizer Steuerkriterien)
-    dynamic_prompt = (
-        "Analysiere dieses Dokument. Der ursprüngliche Dateiname war: "
-        f"'{pdf_stem}'. Nutze diesen Namen als zusätzlichen Hinweis. "
-        "Deine einzige Aufgabe ist es, ZWEI Informationen durch ein Pipe-Zeichen '|' getrennt auszugeben: "
-        "1. Den Dateinamen im Format 'YYYYMMDD_<inhalt>' mit detailliertem Kontext (Namen, Betreff, Firma, Projekt, etc.). "
-        "2. Einen Steuermarker. Entscheide basierend auf den Schweizer Kriterien für Privatpersonen mit Stockwerkeigentum (z.B. berufsbedingte Kosten, Kinderbetreuungskosten, Schuldzinsen, Unterhaltskosten für die Liegenschaft, 3a-Vorsorgebeiträge), ob das Dokument für die Steuererklärung relevant ist. Gib 'STEUER_JA' oder 'STEUER_NEIN' aus. "
-        "Du darfst NUR diese beiden Informationen, durch das Pipe-Zeichen getrennt, ausgeben, keine Erklärung. "
-        "Beispielausgabe: 20240315_Hauswartrechnung_Stockwerkeigentum_Mai|STEUER_JA"
-    )
+    # Verwende die übergebene Prompt-Vorlage
+    dynamic_prompt = PROMPT_TEMPLATE.format(original_filename=pdf_stem)
 
     # 2. Modellabfrage und Parsing
     print("  Frage Modell nach Dateiname und Steuerrelevanz...")
