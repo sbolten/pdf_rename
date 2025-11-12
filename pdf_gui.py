@@ -124,8 +124,8 @@ class PDFProcessorGUI(QWidget):
         lines = data.strip().split('\n')
         for line in lines:
             self.output_text.append(line)
-            # Überprüfe, ob die Zeile anzeigt, dass eine PDF-Datei erfolgreich verarbeitet wurde
-            if "Erfolgreich umbenannt und gespeichert in:" in line or "Speichern für" in line and "fehlgeschlagen" not in line:
+            # Aktualisiere den Fortschrittsbalken, wenn eine neue PDF-Verarbeitung beginnt
+            if "--- Verarbeite PDF:" in line:
                 self.processed_pdfs += 1
                 self.progress_bar.setValue(self.processed_pdfs)
 
