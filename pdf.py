@@ -79,8 +79,8 @@ if not PDF_DIR.is_dir():
     print(f"Fehler: '{PDF_DIR}' ist kein gültiges Verzeichnis.")
     sys.exit(1)
 
-print(f"▶️ Starte Dateiumbenennung mit Modell '{MODEL_NAME}' in: {PDF_DIR}")
-print(f"📁 Zielordner: '{OUTPUT_DIR_ANDERE.name}' und '{OUTPUT_DIR_STEUER.name}'")
+print(f"Starte Dateiumbenennung mit Modell '{MODEL_NAME}' in: {PDF_DIR}")
+print(f"Zielordner: '{OUTPUT_DIR_ANDERE.name}' und '{OUTPUT_DIR_STEUER.name}'")
 
 
 for pdf_path in PDF_DIR.glob("*.pdf"):
@@ -91,7 +91,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     try:
         doc = fitz.open(pdf_path)
     except Exception as e:
-        print(f"❌ Fehler beim Öffnen von {pdf_path.name}: {e}")
+        print(f"Fehler beim Öffnen von {pdf_path.name}: {e}")
         continue
     
     if doc.page_count == 0:
@@ -109,7 +109,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         base64_img = pil_image_to_base64(image, img_format="JPEG")
         del image 
     except Exception as e:
-        print(f"❌ Fehler bei der Konvertierung der Seite: {e}")
+        print(f"Fehler bei der Konvertierung der Seite: {e}")
         doc.close()
         continue
 
@@ -129,7 +129,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     model_output = analyze_image_with_lm_studio(base64_img, dynamic_prompt)
     
     if model_output.startswith("FEHLER"):
-        print(f"❌ Modellfehler oder Verbindungsfehler: {model_output}")
+        print(f"Fehler: Modellfehler oder Verbindungsfehler: {model_output}")
         doc.close()
         continue
 
@@ -142,24 +142,24 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         marker = marker_part.strip().upper()
         if marker not in ["STEUER_JA", "STEUER_NEIN"]:
             marker = "STEUER_UNBEKANNT"
-            print(f"⚠️ Ungültiger Steuermarker '{marker_part}' erhalten. Verwende STEUER_UNBEKANNT.")
+            print(f"Ungültiger Steuermarker '{marker_part}' erhalten. Verwende STEUER_UNBEKANNT.")
 
     except ValueError:
-        print(f"⚠️ Modell gab ungültiges Format zurück: '{model_output}'. Verwende Fallback-Namen.")
-        new_filename_base = f"UNGEPRÜFT_{clean_filename(pdf_path.stem)}"
+        print(f"Ungültiges Format vom Modell zurückgegeben: '{model_output}'. Verwende Fallback-Namen.")
+        new_filename_base = f"UNGEPRUEFT_{clean_filename(pdf_path.stem)}"
     
     # Validiere Format
     if not re.match(r'^\d{8}_.+', new_filename_base):
-        print(f"⚠️ Datum-Format ungültig. Verwende Fallback-Namen.")
+        print(f"Datum-Format ungültig. Verwende Fallback-Namen.")
         new_filename_base = f"UNGUELTIG_{clean_filename(pdf_path.stem)}"
         
     # Bestimme den Zielordner
     if marker == "STEUER_JA":
         TARGET_BASE_DIR = OUTPUT_DIR_STEUER
-        print("    ➡️ Als STEUER-RELEVANT eingestuft.")
+        print("    Als STEUER-RELEVANT eingestuft.")
     else:
         TARGET_BASE_DIR = OUTPUT_DIR_ANDERE
-        print(f"    ➡️ Als {marker} eingestuft.")
+        print(f"    Als {marker} eingestuft.")
 
     # 3. Speichern mit Kollisionsschutz
     final_filename_stem = new_filename_base
@@ -172,23 +172,23 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         if not new_path.exists():
             try:
                 shutil.copy2(pdf_path, new_path)
-                print(f"✅ Erfolgreich umbenannt und gespeichert in: {TARGET_BASE_DIR.name}/{current_filename}")
+                print(f"Erfolgreich umbenannt und gespeichert in: {TARGET_BASE_DIR.name}/{current_filename}")
                 final_save_successful = True
                 break
             except Exception as e:
-                print(f"❌ Unerwarteter Fehler beim Kopieren: {e}")
+                print(f"Unerwarteter Fehler beim Kopieren: {e}")
                 break
         else:
             rand_suffix = random.randint(100, 999) 
             final_filename_stem = f"{new_filename_base}_{rand_suffix}"
-            print(f"⚠️ Dateiname {current_filename} existiert bereits im Zielordner. Versuche neuen Namen: {final_filename_stem}.pdf")
+            print(f"Dateiname {current_filename} existiert bereits im Zielordner. Versuche neuen Namen: {final_filename_stem}.pdf")
             
             if attempt == MAX_RETRIES - 1:
-                print(f"❌ Maximale Wiederholungsversuche ({MAX_RETRIES}) erreicht. Überspringe Datei.")
+                print(f"Maximale Wiederholungsversuche ({MAX_RETRIES}) erreicht. Überspringe Datei.")
 
     if not final_save_successful:
-        print(f"❌ Speichern für {pdf_path.name} fehlgeschlagen nach {MAX_RETRIES} Versuchen.")
+        print(f"Speichern für {pdf_path.name} fehlgeschlagen nach {MAX_RETRIES} Versuchen.")
         
     doc.close()
 
-print("\n✅ Dateiumbenennungsprozess abgeschlossen.")
+print(f"\nDateiumbenennungsprozess abgeschlossen.")
