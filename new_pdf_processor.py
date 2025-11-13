@@ -40,12 +40,48 @@ if PDF_DIR == DEFAULT_PDF_DIR and not PDF_DIR.exists():
 
 # Neuer, spezifischer Prompt für dieses Skript
 NEW_PROMPT_TEMPLATE = (
-    "Analysiere dieses Dokument. Der ursprüngliche Dateiname war: '{original_filename}'. "
-    "Deine einzige Aufgabe ist es, einen neuen Dateinamen im Format 'YYYYMMDD_<KATEGORIE>_<inhalt>' auszugeben. "
-    "Die KATEGORIE muss aus dieser Liste gewählt werden: 'RECHNUNG', 'ANGEBOT', 'LOHNABRECHNUNG', 'PROTOKOLL', 'BERICHT', 'ANDERES'. "
-    "Der Inhalt muss kurz und prägnant sein und alle relevanten Stichworte enthalten. "
-    "Gib NUR den neuen Dateinamen aus, ohne weitere Erklärungen oder Formatierungen. "
-    "Beispielausgabe: 20240515_RECHNUNG_Rechnung_Musterfirma_Mai"
+    "DEINE EINZIGE UND AUSSCHLIESSLICHE AUFGABE IST ES, ZWEI INFORMATIONEN DURCH EIN PIPE-ZEICHEN ('|') GETRENNT AUSZUGEBEN. DAS ZWINGENDE OUTPUT-FORMAT LAUTET: DATEINAME|KATEGORIE1#KATEGORIE2#...  \n"
+    "DU DARFST AUSSCHLIESSLICH DIESE BEIDEN INFORMATIONEN AUSGEBEN, OHNE JEDEN WEITEREN TEXT ODER KOMMENTAR. KEINE ERKLÄRUNGEN, KEINE BEGRÜSSUNGEN, NUR OUTPUT!\n\n"
+    "REGELN:\n\n"
+    "1. DATEINAME FORMAT: YYYYMMDD_<inhalt>.  \n"
+    "   INHALT: Muss alle relevanten, kurzgefassten Stichworte (Namen, Betreff, Firma, Projekt, Art des Dokuments) enthalten. Keine Füllwörter oder Redundanzen.\n\n"
+    "2. KATEGORIEN:  \n"
+    "   Du darfst EIN ODER MEHRERE logische Kategorien wählen.  \n"
+    "   Wenn mehrere Kategorien zutreffen, gib sie in sinnvoller Reihenfolge mit dem Zeichen '#' getrennt aus (z. B. STEUER#VERSICHERUNG).  \n"
+    "   Die Wahl jeder Kategorie muss ZWINGEND aus der untenstehenden Liste erfolgen.  \n"
+    "   Wenn das Dokument keiner der definierten Kategorien zugeordnet werden kann, wähle 'OTHER' als einzige Kategorie.\n\n"
+    "VERFÜGBARE KATEGORIEN UND KRITERIEN:\n\n"
+    "- STEUER:  \n"
+    "  Wähle STEUER, wenn das Dokument für die private Steuererklärung relevant ist (abzugsfähige Kosten oder deklarationspflichtiges Einkommen/Vermögen).  \n"
+    "  (Basis: Kanton Zürich/ZH, Stockwerkeigentum).  \n"
+    "  KRITERIEN: Dokumente mit der expliziten Phrase: 'Diese Bescheinigung bitte für das Ausfüllen Ihrer Steuererklärung aufbewahren' oder  \n"
+    "'ZUSAMMENSTELLUNG FÜR IHRE STEUERERKLÄRUNG'.  \n"
+    "  Jahresend-Bescheinigungen für Vermögen/Schulden, Zinsbescheinigungen (Hypotheken, Kontosalden, 3a/2).  \n"
+    "  Lohnausweise, Bescheinigungen über Beiträge zur Säule 3a.  \n"
+    "  Werterhaltende Liegenschaftsunterhaltsrechnungen (inkl. STWEG-Abrechnungen).  \n"
+    "  Spenden und offizielle Krankenversicherungs-Abrechnungen (Franchise, Selbstbehalt).\n\n"
+    "- RECHNUNGEN:  \n"
+    "  Wähle RECHNUNGEN, wenn das Dokument primär eine Zahlungsaufforderung oder einen Beleg für Konsum darstellt, der keinen Steuervorteil bietet.  \n"
+    "  KRITERIEN: Allgemeine Konsumrechnungen, private Abonnements (Swisscom, Netflix, Entsorgung etc.).  \n"
+    "  Wertvermehrende Investitionen/Modernisierungen der Liegenschaft (z.B. Installation einer Ladestation).  \n"
+    "  Private Ausbildungskosten.\n\n"
+    "- FINANZEN_ALLGEMEIN:  \n"
+    "  Wähle FINANZEN_ALLGEMEIN, wenn das Dokument einen finanziellen Bezug hat, aber keine Steuerrelevanz besitzt und keine Konsumrechnung ist.  \n"
+    "  KRITERIEN: Amortisationspläne oder Amortisationen der Hypothek.  \n"
+    "  Nicht steuerrelevante Kontostände oder Kreditkartenabrechnungen (z.B. Zwischenauszüge).\n\n"
+    "- VERSICHERUNG:  \n"
+    "  Wähle VERSICHERUNG, wenn das Dokument Verträge, Policen oder allgemeine Korrespondenz zu Versicherungen enthält, die nicht direkt eine steuerlich abzugsfähige Prämie betreffen.  \n"
+    "  KRITERIEN: Versicherungspolicen (Hausrat, Haftpflicht, Gebäude). Vertragsänderungen, allgemeine Korrespondenz.\n\n"
+    "- OTHER:  \n"
+    "  Wähle OTHER, wenn das Dokument keinen monetären Wert oder steuerliche Relevanz besitzt, keinen klaren finanziellen, Versicherungs- oder Konsum-Bezug hat  \n"
+    "  oder einfach nicht in die anderen Kategorien passt.  \n"
+    "  KRITERIEN: Einladungen, allgemeine Mails, leere oder irrelevante Dokumente.  \n"
+    "  Alle Dokumente, die nicht klar zuordenbar sind (Fallengruppe).\n\n"
+    "BEISPIELE (Zwingendes Output-Format):\n"
+    "20240115_Bank_Vermögensausweis_Jahresende|STEUER\n"
+    "20240320_Fitness_Abo_Rechnung|RECHNUNGEN\n"
+    "20240228_Krankenversicherung_Jahresabrechnung|VERSICHERUNG#STEUER\n"
+    "20240405_Bank_Amortisationsplan|FINANZEN_ALLGEMEIN#STEUER"
 )
 
 MAX_RETRIES = 3 # Weniger Retries für dieses einfache Skript
@@ -99,7 +135,7 @@ def analyze_document_with_lm_studio(base64_image: str, prompt: str) -> str:
                     ],
                 }
             ],
-            max_tokens=100, # Erhöhe max_tokens für potenziell längere Dateinamen
+            max_tokens=150, # Erhöhe max_tokens für potenziell längere Dateinamen und mehrere Kategorien
             temperature=0.1,
         )
         return response.choices[0].message.content.strip()
@@ -160,15 +196,36 @@ for pdf_path in pdf_files:
                 # Validierung und Bereinigung des Namens
                 potential_new_name = model_output.strip()
                 
-                # Überprüfe, ob der Name das erwartete Format hat (YYYYMMDD_KATEGORIE_...)
-                if re.match(r'^\d{8}_(RECHNUNG|ANGEBOT|LOHNABRECHNUNG|PROTOKOLL|BERICHT|ANDERES)_', potential_new_name):
-                    new_filename_output = potential_new_name
+                # Überprüfe, ob der Name das erwartete Format hat (YYYYMMDD_<inhalt>|<KATEGORIEN>)
+                # Das Format ist jetzt DATEINAME|KATEGORIE1#KATEGORIE2#...
+                match = re.match(r'^(\d{8}_.+?)\|(.*)$', potential_new_name)
+                if match:
+                    date_part, categories_part = match.groups()
+                    # Überprüfe, ob die Kategorien gültig sind
+                    categories = categories_part.split('#')
+                    valid_categories = []
+                    for cat in categories:
+                        cat_upper = cat.strip().upper()
+                        # Liste der erlaubten Kategorien aus dem Prompt
+                        allowed_cats = ['STEUER', 'RECHNUNGEN', 'FINANZEN_ALLGEMEIN', 'VERSICHERUNG', 'OTHER']
+                        if cat_upper in allowed_cats:
+                            valid_categories.append(cat_upper)
+                        else:
+                            # Wenn eine Kategorie ungültig ist, behandle es als Fehler oder ignoriere sie
+                            # Hier entscheiden wir uns, sie zu ignorieren und ggf. 'OTHER' zu verwenden, falls keine gültigen gefunden werden
+                            pass 
+                    
+                    if not valid_categories: # Wenn keine gültigen Kategorien gefunden wurden
+                        valid_categories.append('OTHER')
+                        error_message = f"Model returned invalid categories: '{categories_part}'. Defaulting to 'OTHER'."
+
+                    new_filename_output = f"{date_part}|{'#'.join(valid_categories)}"
                 else:
                     # Wenn das Format nicht stimmt, versuche es mit einer generischen Kategorie und füge die Checksumme hinzu
                     checksum = generate_checksum(pdf_path)
                     cleaned_base = clean_filename(pdf_stem)
-                    new_filename_output = f"INVALID_FORMAT_{checksum}_{cleaned_base}"
-                    error_message = f"Invalid filename format from model: '{potential_new_name}'. Expected 'YYYYMMDD_CATEGORY_...'."
+                    new_filename_output = f"INVALID_FORMAT_{checksum}_{cleaned_base}|OTHER" # Füge OTHER hinzu, um das Format beizubehalten
+                    error_message = f"Invalid output format from model: '{potential_new_name}'. Expected 'YYYYMMDD_<inhalt>|CATEGORY1#CATEGORY2...'"
         
         if doc:
             doc.close()
