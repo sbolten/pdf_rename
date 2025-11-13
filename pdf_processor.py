@@ -108,34 +108,53 @@ if not PDF_DIR.is_dir():
 print(f"Starte Dateiumbenennung mit Modell '{MODEL_NAME}' in: {PDF_DIR}")
 print(f"Zielordner: '{OUTPUT_DIR_ANDERE.name}' und '{OUTPUT_DIR_STEUER.name}'")
 
+# --- TABELLEN-HEADER ---
+# Definiere die Spaltenbreiten für eine bessere Lesbarkeit
+COL_WIDTH_ORIGINAL = 40
+COL_WIDTH_CHECKSUM = 12
+COL_WIDTH_NEWNAME = 40
+COL_WIDTH_STATUS = 15
+
+header = (
+    f"{'Original Filename':<{COL_WIDTH_ORIGINAL}} | "
+    f"{'Checksum':<{COL_WIDTH_CHECKSUM}} | "
+    f"{'New Filename':<{COL_WIDTH_NEWNAME}} | "
+    f"{'Status':<{COL_WIDTH_STATUS}} | "
+    f"{'Error Message'}"
+)
+print("\n" + header)
+print("-" * len(header)) # Trennlinie
+
+processed_files_count = 0
 
 for pdf_path in PDF_DIR.glob("*.pdf"):
+    original_filename = pdf_path.name
     pdf_stem = pdf_path.stem 
-    print(f"\n--- Verarbeite PDF: {pdf_path.name} ---")
+    checksum = "N/A" # Default value
+    new_filename_stem = ""
+    status = "Error"
+    error_message = ""
     
-    # Generiere Checksumme vor der Verarbeitung
     try:
         checksum = generate_checksum(pdf_path)
-        print(f"  Checksumme: {checksum}")
     except Exception as e:
-        print(f"  Fehler beim Generieren der Checksumme für {pdf_path.name}: {e}")
-        checksum = "CHECKSUMMENFEHLER" # Fallback
+        error_message = f"Checksum error: {e}"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        continue # Skip to next file if checksum fails
 
     # [PDF-Öffnen und Bild-Konvertierung (PyMuPDF)]
+    doc = None # Initialize doc to None
     try:
         doc = fitz.open(pdf_path)
-    except Exception as e:
-        print(f"  Fehler beim Öffnen von {pdf_path.name}: {e}")
-        continue
-    
-    if doc.page_count == 0:
-        print(f"  {pdf_path.name} hat keine Seiten.")
-        doc.close()
-        continue
+        if doc.page_count == 0:
+            status = "Skipped"
+            error_message = "No pages in PDF"
+            new_filename_stem = f"SKIPPED_{clean_filename(pdf_stem)}_{checksum}"
+            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+            continue
+            
+        page = doc.load_page(0)
         
-    page = doc.load_page(0)
-    
-    try:
         zoom = 1.5 
         mat = fitz.Matrix(zoom, zoom)
         pix = page.get_pixmap(matrix=mat, alpha=False)
@@ -144,25 +163,31 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         base64_img = pil_image_to_base64(image, img_format="JPEG")
         del image 
     except Exception as e:
-        print(f"  Fehler bei der Konvertierung der Seite: {e}")
-        doc.close()
+        status = "Error"
+        error_message = f"Page conversion error: {e}"
+        new_filename_stem = f"ERROR_{clean_filename(pdf_stem)}_{checksum}"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        if doc:
+            doc.close()
         continue
 
     # 1. ERSTELLUNG DES DYNAMISCHEN PROMPTS (mit spezifischen Schweizer Steuerkriterien)
-    # Verwende die übergebene Prompt-Vorlage
     dynamic_prompt = PROMPT_TEMPLATE.format(original_filename=pdf_stem)
 
     # 2. Modellabfrage und Parsing
-    print("  Frage Modell nach Dateiname und Steuerrelevanz...")
     model_output = analyze_image_with_lm_studio(base64_img, dynamic_prompt)
     
     if model_output.startswith("FEHLER"):
-        print(f"  Fehler: Modellfehler oder Verbindungsfehler: {model_output}")
-        doc.close()
+        status = "Error"
+        error_message = f"Model API error: {model_output}"
+        new_filename_stem = f"MODEL_ERROR_{clean_filename(pdf_stem)}_{checksum}"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        if doc:
+            doc.close()
         continue
 
     marker = "STEUER_UNBEKANNT"
-    new_filename_base = "" 
+    name_part = ""
     
     try:
         name_part, marker_part = model_output.split('|', 1)
@@ -170,31 +195,39 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         marker = marker_part.strip().upper()
         if marker not in ["STEUER_JA", "STEUER_NEIN"]:
             marker = "STEUER_UNBEKANNT"
-            print(f"  Ungültiger Steuermarker '{marker_part}' erhalten. Verwende STEUER_UNBEKANNT.")
-
+            error_message = f"Invalid tax marker '{marker_part}' received."
+            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+            # Continue processing with unknown marker, but log the error
+            
     except ValueError:
-        print(f"  Ungültiges Format vom Modell zurückgegeben: '{model_output}'. Verwende Fallback-Namen.")
-        new_filename_base = f"UNGEPRUEFT_{clean_filename(pdf_path.stem)}"
+        error_message = f"Invalid model output format: '{model_output}'"
+        new_filename_base = f"INVALID_FORMAT_{clean_filename(pdf_stem)}"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_base:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        # Continue processing with fallback name, but log the error
     
-    # Validiere Format
+    # Validiere Format und erstelle den neuen Dateinamen-Stamm
     if not re.match(r'^\d{8}_.+', new_filename_base):
-        print(f"  Datum-Format ungültig. Verwende Fallback-Namen.")
-        new_filename_base = f"UNGUELTIG_{clean_filename(pdf_path.stem)}"
+        error_message = f"Filename format invalid (expected YYYYMMDD_...): '{new_filename_base}'"
+        new_filename_base = f"INVALID_DATE_{clean_filename(pdf_stem)}"
+        # Continue processing with fallback name, but log the error
         
-    # Füge die Checksumme zum neuen Dateinamen hinzu
     final_filename_stem = f"{new_filename_base}_{checksum}"
 
-    # Bestimme den Zielordner
+    # Bestimme den Zielordner und setze den Status
+    TARGET_BASE_DIR = OUTPUT_DIR_ANDERE
+    status = "Success" # Assume success unless an error occurs during saving
     if marker == "STEUER_JA":
         TARGET_BASE_DIR = OUTPUT_DIR_STEUER
-        print(f"  Ergebnis: {final_filename_stem}.pdf (Steuerrelevant)")
+        status = "Success (Tax Relevant)"
+    elif marker == "STEUER_UNBEKANNT":
+        status = "Success (Unknown Tax)"
     else:
-        TARGET_BASE_DIR = OUTPUT_DIR_ANDERE
-        print(f"  Ergebnis: {final_filename_stem}.pdf ({marker})")
+        status = "Success" # Default success
 
     # 3. Speichern mit Kollisionsschutz
-    current_filename_stem_for_save = final_filename_stem # Verwende den Stem mit Checksumme
+    current_filename_stem_for_save = final_filename_stem 
     
+    saved = False
     for attempt in range(MAX_RETRIES):
         current_filename = f"{current_filename_stem_for_save}.pdf"
         new_path = TARGET_BASE_DIR / current_filename
@@ -202,21 +235,53 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         if not new_path.exists():
             try:
                 shutil.copy2(pdf_path, new_path)
-                print(f"  Gespeichert als: {TARGET_BASE_DIR.name}/{current_filename}")
+                saved = True
                 break # Erfolgreich gespeichert, Schleife beenden
             except Exception as e:
-                print(f"  Unerwarteter Fehler beim Kopieren: {e}")
+                error_message = f"File copy error: {e}"
+                status = "Error"
+                new_filename_stem = f"SAVE_ERROR_{clean_filename(pdf_stem)}_{checksum}"
                 break # Fehler beim Kopieren, Schleife beenden
         else:
             # Wenn die Datei mit Checksumme bereits existiert, generiere einen neuen Suffix
             rand_suffix = random.randint(100, 999) 
             current_filename_stem_for_save = f"{final_filename_stem}_{rand_suffix}"
-            print(f"  Dateiname '{current_filename}' existiert bereits. Versuche neuen Namen: '{current_filename_stem_for_save}.pdf'")
+            # print(f"  Dateiname '{current_filename}' existiert bereits. Versuche neuen Namen: '{current_filename_stem_for_save}.pdf'") # Optional: Log this
             
             if attempt == MAX_RETRIES - 1:
-                print(f"  Maximale Wiederholungsversuche ({MAX_RETRIES}) erreicht. Überspringe Datei.")
-                # Hier könnte man auch die Originaldatei mit Checksumme in ein Fehlerverzeichnis kopieren
+                error_message = f"Max retries ({MAX_RETRIES}) reached for saving."
+                status = "Error"
+                new_filename_stem = f"SAVE_MAX_RETRIES_{clean_filename(pdf_stem)}_{checksum}"
+                break # Maximale Wiederholungen erreicht
         
-    doc.close()
+    if not saved:
+        # If not saved after retries, ensure an error status and message are set
+        if status != "Error": # Avoid overwriting a specific error message
+            status = "Error"
+            error_message = "Failed to save file after multiple attempts."
+        
+        # Use the last attempted filename stem for reporting if saving failed
+        if not new_filename_stem: # If it wasn't set by an earlier error
+            new_filename_stem = current_filename_stem_for_save
 
-print(f"\nDateiumbenennungsprozess abgeschlossen.")
+    # --- TABELLENZEILE AUSGABE ---
+    # Truncate long filenames if they exceed column width
+    display_original = (original_filename[:COL_WIDTH_ORIGINAL-3] + '...') if len(original_filename) > COL_WIDTH_ORIGINAL else original_filename
+    display_new_filename = (new_filename_stem[:COL_WIDTH_NEWNAME-3] + '...') if len(new_filename_stem) > COL_WIDTH_NEWNAME else new_filename_stem
+    
+    row = (
+        f"{display_original:<{COL_WIDTH_ORIGINAL}} | "
+        f"{checksum:<{COL_WIDTH_CHECKSUM}} | "
+        f"{display_new_filename:<{COL_WIDTH_NEWNAME}} | "
+        f"{status:<{COL_WIDTH_STATUS}} | "
+        f"{error_message}"
+    )
+    print(row)
+    
+    processed_files_count += 1
+
+    if doc:
+        doc.close()
+
+print("-" * len(header)) # Trennlinie am Ende
+print(f"\nVerarbeitung abgeschlossen. {processed_files_count} Dateien wurden verarbeitet.")
