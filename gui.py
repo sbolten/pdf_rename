@@ -174,7 +174,7 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet, aber die Methode erwartet es
+            # self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet, daher entfernt
             self.prompt_input
         )
         # Lade Modelle, wenn die URL vorhanden ist
@@ -219,7 +219,7 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet
+            # self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet
             self.prompt_input
         )
         
