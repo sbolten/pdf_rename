@@ -258,7 +258,9 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     # Wenn mehrere Kategorien vorhanden sind, wird die erste als Hauptordner verwendet.
     # Dies kann angepasst werden, falls eine komplexere Logik gewünscht ist.
     primary_category = categories[0] if categories else 'OTHER'
-    TARGET_SUB_DIR = pathlib.Path(primary_category)
+    # Ensure the category name is uppercase for directory creation
+    primary_category_upper = primary_category.upper() 
+    TARGET_SUB_DIR = pathlib.Path(primary_category_upper)
     TARGET_FULL_DIR = OUTPUT_BASE_DIR / TARGET_SUB_DIR
     
     # Erstelle den Zielordner, falls er nicht existiert
@@ -347,4 +349,4 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         doc.close()
 
 print("-" * len(header)) # Trennlinie am Ende
-print(f"\nVerarbeitung abgeschlossen. {processed_files_count} Dateien wurden verarbeitet.")
+print(f"\nVerarbeitung abgeschlossen. {processed_files_count} Dateien wurden analysiert.")
