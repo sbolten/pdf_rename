@@ -391,6 +391,11 @@ class PDFProcessorGUI(QWidget):
             if line.startswith("---"): 
                 continue
             
+            # Check if the line is the header printed by pdf_processor.py
+            # This is a heuristic based on the expected header format.
+            if "Original Filename" in line and "Checksum" in line and "New Filename" in line:
+                continue
+
             # Parse the line to extract data for the table
             parts = line.split('|')
             if len(parts) == 6: # Expecting 6 columns: Original, Checksum, New, Status, Target, Error
