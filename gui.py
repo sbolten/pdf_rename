@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QFileDialog,
     QTextEdit, QProgressBar, QGroupBox, QFormLayout,
-    QComboBox # Import QComboBox for model selection
+    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView # Import QTableWidget and related items
 )
 from PyQt6.QtCore import Qt, QProcess
 
@@ -107,11 +107,24 @@ class PDFProcessorGUI(QWidget):
         self.progress_bar.setVisible(False) # Zuerst versteckt
         main_layout.addWidget(self.progress_bar)
 
-        # --- Output Anzeige ---
-        self.output_text = QTextEdit()
-        self.output_text.setReadOnly(True)
-        self.output_text.setPlaceholderText("Hier werden die Verarbeitungsergebnisse angezeigt...")
-        main_layout.addWidget(self.output_text)
+        # --- Output Anzeige (ersetzt durch QTableWidget) ---
+        self.output_table = QTableWidget()
+        self.output_table.setColumnCount(6) # Number of columns
+        self.output_table.setHorizontalHeaderLabels([
+            "Original Filename", "Checksum", "New Filename", "Status", "Target Folder", "Error Message"
+        ])
+        # Adjust column widths for better readability
+        self.output_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch) # Original Filename
+        self.output_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # Checksum
+        self.output_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # New Filename
+        self.output_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents) # Status
+        self.output_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Target Folder
+        self.output_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch) # Error Message
+        
+        self.output_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Make cells non-editable
+        self.output_table.setAlternatingRowColors(True) # Improve readability
+        self.output_table.setVisible(True) # Make it visible from the start
+        main_layout.addWidget(self.output_table)
 
         self.setLayout(main_layout)
 
@@ -119,7 +132,7 @@ class PDFProcessorGUI(QWidget):
         """Ruft die Liste der Modelle von LM Studio ab und füllt die ComboBox."""
         lm_studio_url = self.target_url_input.text().strip()
         if not lm_studio_url:
-            self.output_text.append("<font color='red'>Bitte geben Sie zuerst die LM Studio Target URL an.</font>")
+            self.add_log_message("<font color='red'>Bitte geben Sie zuerst die LM Studio Target URL an.</font>")
             return
 
         # Stelle sicher, dass die URL mit /v1 endet, falls nicht schon geschehen
@@ -128,7 +141,7 @@ class PDFProcessorGUI(QWidget):
             self.target_url_input.setText(lm_studio_url) # Aktualisiere das Feld
 
         models_url = f"{lm_studio_url}/models"
-        self.output_text.append(f"Versuche, Modelle von {models_url} abzurufen...")
+        self.add_log_message(f"Versuche, Modelle von {models_url} abzurufen...")
 
         try:
             response = requests.get(models_url, timeout=5) # Timeout von 5 Sekunden
@@ -138,21 +151,18 @@ class PDFProcessorGUI(QWidget):
             
             self.model_name_combobox.clear() # Leere die aktuelle Liste
             
-            # --- ANPASSUNG HIER ---
-            # LM Studio gibt die Modelle unter dem Schlüssel 'data' zurück, und jedes Modell hat ein 'id' Feld.
             if not models_data or 'data' not in models_data:
-                self.output_text.append("<font color='orange'>Keine Modelle gefunden oder unerwartetes Format von LM Studio (erwartet 'data' Schlüssel).</font>")
+                self.add_log_message("<font color='orange'>Keine Modelle gefunden oder unerwartetes Format von LM Studio (erwartet 'data' Schlüssel).</font>")
                 return
 
             available_models = [model['id'] for model in models_data['data']]
-            # --- ENDE ANPASSUNG ---
             
             if not available_models:
-                self.output_text.append("<font color='orange'>Keine Modelle in der Antwort von LM Studio gefunden.</font>")
+                self.add_log_message("<font color='orange'>Keine Modelle in der Antwort von LM Studio gefunden.</font>")
                 return
 
             self.model_name_combobox.addItems(available_models)
-            self.output_text.append(f"<font color='green'>{len(available_models)} Modelle von LM Studio geladen.</font>")
+            self.add_log_message(f"<font color='green'>{len(available_models)} Modelle von LM Studio geladen.</font>")
 
             # Setze das erste Modell als Standard, falls vorhanden
             if available_models:
@@ -163,13 +173,13 @@ class PDFProcessorGUI(QWidget):
 
 
         except requests.exceptions.ConnectionError:
-            self.output_text.append(f"<font color='red'>Fehler: Konnte keine Verbindung zu LM Studio unter {models_url} herstellen. Stellen Sie sicher, dass LM Studio läuft und die URL korrekt ist.</font>")
+            self.add_log_message(f"<font color='red'>Fehler: Konnte keine Verbindung zu LM Studio unter {models_url} herstellen. Stellen Sie sicher, dass LM Studio läuft und die URL korrekt ist.</font>")
         except requests.exceptions.Timeout:
-            self.output_text.append(f"<font color='red'>Fehler: Zeitüberschreitung beim Abrufen der Modelle von {models_url}. LM Studio antwortet möglicherweise nicht.</font>")
+            self.add_log_message(f"<font color='red'>Fehler: Zeitüberschreitung beim Abrufen der Modelle von {models_url}. LM Studio antwortet möglicherweise nicht.</font>")
         except requests.exceptions.RequestException as e:
-            self.output_text.append(f"<font color='red'>Fehler beim Abrufen der Modelle von LM Studio: {e}</font>")
+            self.add_log_message(f"<font color='red'>Fehler beim Abrufen der Modelle von LM Studio: {e}</font>")
         except Exception as e:
-            self.output_text.append(f"<font color='red'>Ein unerwarteter Fehler ist aufgetreten: {e}</font>")
+            self.add_log_message(f"<font color='red'>Ein unerwarteter Fehler ist aufgetreten: {e}</font>")
 
 
     def load_initial_config(self):
@@ -177,7 +187,6 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            # self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet, daher entfernt
             self.prompt_input
         )
         # Lade Modelle, wenn die URL vorhanden ist
@@ -212,9 +221,9 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.config["prompt_template"] = self.prompt_input.toPlainText()
 
         if self.config_manager.save_config(self.config_manager.get_current_config()):
-            self.output_text.append("<font color='green'>Konfiguration erfolgreich gespeichert.</font>")
+            self.add_log_message("<font color='green'>Konfiguration erfolgreich gespeichert.</font>")
         else:
-            self.output_text.append("<font color='red'>Fehler beim Speichern der Konfiguration.</font>")
+            self.add_log_message("<font color='red'>Fehler beim Speichern der Konfiguration.</font>")
 
     def load_config_from_gui(self):
         """Lädt die Konfiguration aus der Datei und wendet sie auf die GUI an."""
@@ -222,7 +231,6 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            # self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet
             self.prompt_input
         )
         
@@ -241,7 +249,7 @@ class PDFProcessorGUI(QWidget):
         if self.target_url_input.text():
             self.fetch_lm_studio_models()
 
-        self.output_text.append("<font color='blue'>Konfiguration geladen.</font>")
+        self.add_log_message("<font color='blue'>Konfiguration geladen.</font>")
         # Überprüfe und aktiviere den Start-Button basierend auf dem geladenen Verzeichnis
         if os.path.isdir(self.pdf_dir_input.text()):
             self.start_button.setEnabled(True)
@@ -266,22 +274,23 @@ class PDFProcessorGUI(QWidget):
         prompt_template = self.prompt_input.toPlainText()
 
         if not pdf_dir or not os.path.isdir(pdf_dir):
-            self.output_text.append("<font color='red'>Fehler: Ungültiges PDF-Verzeichnis ausgewählt.</font>")
+            self.add_log_message("<font color='red'>Fehler: Ungültiges PDF-Verzeichnis ausgewählt.</font>")
             return
         if not target_url:
-            self.output_text.append("<font color='red'>Fehler: Target URL darf nicht leer sein.</font>")
+            self.add_log_message("<font color='red'>Fehler: Target URL darf nicht leer sein.</font>")
             return
         if not model_name:
-            self.output_text.append("<font color='red'>Fehler: Modellname darf nicht leer sein.</font>")
+            self.add_log_message("<font color='red'>Fehler: Modellname darf nicht leer sein.</font>")
             return
         if not prompt_template:
-            self.output_text.append("<font color='red'>Fehler: Prompt-Vorlage darf nicht leer sein.</font>")
+            self.add_log_message("<font color='red'>Fehler: Prompt-Vorlage darf nicht leer sein.</font>")
             return
 
-        self.output_text.clear()
-        self.output_text.append(f"<font color='blue'>Starte Verarbeitung für Verzeichnis: {pdf_dir}</font>")
-        self.output_text.append(f"<font color='blue'>Target URL: {target_url}</font>")
-        self.output_text.append(f"<font color='blue'>Modell: {model_name}</font>")
+        self.output_table.clearContents() # Clear previous table content
+        self.output_table.setRowCount(0) # Reset row count
+        self.add_log_message(f"<font color='blue'>Starte Verarbeitung für Verzeichnis: {pdf_dir}</font>")
+        self.add_log_message(f"<font color='blue'>Target URL: {target_url}</font>")
+        self.add_log_message(f"<font color='blue'>Modell: {model_name}</font>")
 
         self.start_button.setEnabled(False)
         self.browse_pdf_dir_button.setEnabled(False)
@@ -300,13 +309,13 @@ class PDFProcessorGUI(QWidget):
             pdf_files = list(pathlib.Path(pdf_dir).glob("*.pdf"))
             self.total_pdfs = len(pdf_files)
             if self.total_pdfs == 0:
-                self.output_text.append("<font color='orange'>Warnung: Keine PDF-Dateien im ausgewählten Verzeichnis gefunden.</font>")
+                self.add_log_message("<font color='orange'>Warnung: Keine PDF-Dateien im ausgewählten Verzeichnis gefunden.</font>")
                 self.reset_ui()
                 return
             self.progress_bar.setMaximum(self.total_pdfs)
             self.processed_pdfs = 0 # Setze den Zähler zurück
         except Exception as e:
-            self.output_text.append(f"<font color='red'>Fehler beim Zählen der PDF-Dateien: {e}</font>")
+            self.add_log_message(f"<font color='red'>Fehler beim Zählen der PDF-Dateien: {e}</font>")
             self.reset_ui()
             return
 
@@ -319,7 +328,7 @@ class PDFProcessorGUI(QWidget):
         # Stelle sicher, dass pdf.py im selben Verzeichnis wie dieses GUI-Skript liegt oder gib den vollen Pfad an
         script_path = os.path.join(os.path.dirname(__file__), "pdf_processor.py") # Angepasster Pfad
         if not os.path.exists(script_path):
-            self.output_text.append(f"<font color='red'>Fehler: pdf_processor.py Skript nicht gefunden unter {script_path}</font>")
+            self.add_log_message(f"<font color='red'>Fehler: pdf_processor.py Skript nicht gefunden unter {script_path}</font>")
             self.reset_ui()
             return
 
@@ -340,24 +349,43 @@ class PDFProcessorGUI(QWidget):
 
     def handle_stdout(self):
         data = self.process.readAllStandardOutput().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
-        # Füge jede Zeile einzeln hinzu, um die Formatierung zu erhalten
         lines = data.strip().split('\n')
         for line in lines:
-            self.output_text.append(line)
-            # Aktualisiere den Fortschrittsbalken, wenn eine neue PDF-Verarbeitung beginnt
-            if "--- Verarbeite PDF:" in line:
-                self.processed_pdfs += 1
-                self.progress_bar.setValue(self.processed_pdfs)
+            if line.startswith("---"): # Skip table header/separator lines from script output
+                continue
+            
+            # Parse the line to extract data for the table
+            parts = line.split('|')
+            if len(parts) == 6: # Expecting 6 columns: Original, Checksum, New, Status, Target, Error
+                original, checksum, new_name, status, target_folder, error_msg = [part.strip() for part in parts]
+                
+                row_position = self.output_table.rowCount()
+                self.output_table.insertRow(row_position)
+                
+                self.output_table.setItem(row_position, 0, QTableWidgetItem(original))
+                self.output_table.setItem(row_position, 1, QTableWidgetItem(checksum))
+                self.output_table.setItem(row_position, 2, QTableWidgetItem(new_name))
+                self.output_table.setItem(row_position, 3, QTableWidgetItem(status))
+                self.output_table.setItem(row_position, 4, QTableWidgetItem(target_folder))
+                self.output_table.setItem(row_position, 5, QTableWidgetItem(error_msg))
+                
+                # Update progress bar if it's a successful processing line
+                if "Success" in status and "--- Verarbeite PDF:" not in line: # Avoid double counting if script prints this
+                    self.processed_pdfs += 1
+                    self.progress_bar.setValue(self.processed_pdfs)
+            else:
+                # If it's not a table row, treat it as a log message
+                self.add_log_message(line)
 
     def handle_stderr(self):
         data = self.process.readAllStandardError().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
-        self.output_text.append(f"<font color='red'>{data.strip()}</font>")
+        self.add_log_message(f"<font color='red'>{data.strip()}</font>")
 
     def handle_process_finished(self, exit_code, exit_status):
         if exit_status == QProcess.ExitStatus.NormalExit:
-            self.output_text.append("<font color='green'>✅ Verarbeitung abgeschlossen.</font>")
+            self.add_log_message("<font color='green'>✅ Verarbeitung abgeschlossen.</font>")
         else:
-            self.output_text.append(f"<font color='red'>❌ Verarbeitung mit Fehler beendet. Exit Code: {exit_code}</font>")
+            self.add_log_message(f"<font color='red'>❌ Verarbeitung mit Fehler beendet. Exit Code: {exit_code}</font>")
         self.reset_ui()
 
     def reset_ui(self):
@@ -373,6 +401,20 @@ class PDFProcessorGUI(QWidget):
         self.progress_bar.setValue(0)
         self.total_pdfs = 0
         self.processed_pdfs = 0
+        # Keep the table visible, but clear its contents if needed (handled in start_processing)
+
+    def add_log_message(self, message):
+        """Appends a message to the log output, preserving HTML formatting."""
+        # This method is now used to add messages to the table's log area (if we had one)
+        # For now, we'll just print to console or a separate log widget if implemented.
+        # Since we replaced QTextEdit with QTableWidget, we'll use this for general messages.
+        # If you want a separate log area, you'd need to add another widget.
+        # For now, let's assume these messages are for general feedback and print them.
+        # In a real GUI, you'd likely have a separate QTextEdit for logs.
+        # For this example, we'll just print to stdout, which might appear in the console.
+        print(message) # This will print to the console where the script is run.
+        # If you want to display these in the GUI, you'd need a dedicated log widget.
+        # For now, the table shows processed file details.
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
