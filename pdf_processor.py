@@ -148,23 +148,26 @@ print("-" * len(header)) # Trennlinie
 processed_files_count = 0
 
 for pdf_path in PDF_DIR.glob("*.pdf"):
+    # --- VARIABLEN-RESET FÜR JEDE DATEI ---
     original_filename = pdf_path.name
     pdf_stem = pdf_path.stem 
     checksum = "N/A" # Default value
     new_filename_stem = ""
-    status = "Error"
+    status = "Error" # Default status
     error_message = ""
     target_folder_display = "" # Variable für die Anzeige des Zielordners
-    
+    doc = None # Initialize doc to None for each file
+    # --- ENDE VARIABLEN-RESET ---
+
     try:
         checksum = generate_checksum(pdf_path)
     except Exception as e:
         error_message = f"Checksum error: {e}"
+        # Print the row with default/error values
         print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         continue # Skip to next file if checksum fails
 
     # [PDF-Öffnen und Bild-Konvertierung (PyMuPDF)]
-    doc = None # Initialize doc to None
     try:
         doc = fitz.open(pdf_path)
         if doc.page_count == 0:
@@ -173,6 +176,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
             new_filename_stem = f"SKIPPED_{clean_filename(pdf_stem)}_{checksum}"
             target_folder_display = "N/A"
             print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+            doc.close() # Close the document before continuing
             continue
             
         page = doc.load_page(0)
@@ -200,6 +204,12 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     # 2. Modellabfrage und Parsing
     model_output = analyze_image_with_lm_studio(base64_img, dynamic_prompt)
     
+    # --- RESET VARIABLEN VOR MODELL-OUTPUT-VERARBEITUNG ---
+    name_part = ""
+    categories = [] # Liste für alle identifizierten Kategorien
+    new_filename_base = "" # Reset for this file
+    # --- ENDE RESET VARIABLEN ---
+
     if model_output.startswith("FEHLER"):
         status = "Error"
         error_message = f"Model API error: {model_output}"
@@ -210,10 +220,6 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
             doc.close()
         continue
 
-    marker = "STEUER_UNBEKANNT"
-    name_part = ""
-    categories = [] # Liste für alle identifizierten Kategorien
-    
     try:
         name_part, categories_part = model_output.split('|', 1)
         new_filename_base = clean_filename(name_part)
