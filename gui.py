@@ -351,7 +351,8 @@ class PDFProcessorGUI(QWidget):
         data = self.process.readAllStandardOutput().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
         lines = data.strip().split('\n')
         for line in lines:
-            if line.startswith("---"): # Skip table header/separator lines from script output
+            # --- FIX: Skip lines that start with '---' to avoid re-adding headers ---
+            if line.startswith("---"): 
                 continue
             
             # Parse the line to extract data for the table
