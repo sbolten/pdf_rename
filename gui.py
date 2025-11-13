@@ -160,15 +160,21 @@ class PDFProcessorGUI(QWidget):
         self.setLayout(main_layout)
 
     def update_info_labels(self):
-        """Updates the general information labels."""
+        """Updates the general information labels based on the current process state."""
         self.model_info_label.setText(f"Modell: {self.model_name_combobox.currentText() if self.model_name_combobox.currentText() else 'N/A'}")
         self.target_url_info_label.setText(f"Target URL: {self.target_url_input.text()}")
-        if self.process and self.process.state() == QProcess.ProcessState.Running:
+        
+        if self.process is None:
+            self.status_info_label.setText("Status: Idle")
+        elif self.process.state() == QProcess.ProcessState.Running:
             self.status_info_label.setText("Status: Processing...")
-        elif self.process and self.process.state() == QProcess.ProcessState.NotRunning:
+        elif self.process.state() == QProcess.ProcessState.NotRunning:
+            # Check if the process finished successfully or with an error
+            # This logic is better handled in handle_process_finished, but for immediate feedback:
             self.status_info_label.setText("Status: Processing Complete")
         else:
-            self.status_info_label.setText("Status: Idle")
+            self.status_info_label.setText("Status: Unknown")
+
 
     def fetch_lm_studio_models(self):
         """Ruft die Liste der Modelle von LM Studio ab und füllt die ComboBox."""
