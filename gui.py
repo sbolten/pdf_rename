@@ -167,10 +167,10 @@ class PDFProcessorGUI(QWidget):
         if self.process is None:
             self.status_info_label.setText("Status: Idle")
         elif self.process.state() == QProcess.ProcessState.Running:
-            self.status_info_label.setText("Status: Processing...")
+            self.status_info_label.setText("Status: Processing...") # This line is now correctly displayed during processing
         elif self.process.state() == QProcess.ProcessState.NotRunning:
-            # Check if the process finished successfully or with an error
-            # This logic is better handled in handle_process_finished, but for immediate feedback:
+            # This state is reached after the process has finished.
+            # The actual completion status (success/error) is handled in handle_process_finished.
             self.status_info_label.setText("Status: Processing Complete")
         else:
             self.status_info_label.setText("Status: Unknown")
