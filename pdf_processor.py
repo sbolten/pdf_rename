@@ -20,7 +20,7 @@ if len(sys.argv) < 2:
 
 PDF_DIR = pathlib.Path(sys.argv[1])
 TARGET_URL = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:1234/v1" # Standardwert, falls nicht übergeben
-MODEL_NAME = sys.argv[3] if len(sys.argv) > 3 else "Qwen/Qwen3-V1-8B" # Standardwert
+MODEL_NAME = sys.argv[3] if len(sys.argv) > 3 else "qwen/qwen3-vl-4b" # Changed default model name
 PROMPT_TEMPLATE = sys.argv[4] if len(sys.argv) > 4 else (
     "Analysiere dieses Dokument. Der ursprüngliche Dateiname war: "
     f"'{{original_filename}}'. Nutze diesen Namen als zusätzlichen Hinweis. "

@@ -8,7 +8,7 @@ class ConfigManager:
         self.default_config = {
             "pdf_dir": r"C:/Users/steph/Documents/dev/python_ai/pdf",
             "target_url": "http://127.0.0.1:1234/v1",
-            "model_name": "Qwen/Qwen3-V1-8B",
+            "model_name": "qwen/qwen3-vl-4b", # Changed default model name
             "prompt_template": (
                 "Ziel: Analysiere dieses Dokument. Deine einzige und ausschliessliche Aufgabe ist es, ZWEI Informationen durch ein Pipe-Zeichen '|' getrennt auszugeben. Du darfst AUSSCHLIESSLICH diese beiden Informationen ausgeben, ohne jeden weiteren Text oder Kommentar. Jeder weitere Text, Kommentar oder Erklärung führt zur Nichtbeachtung der Antwort.\n\n"
                 "1. **Dateiname:** Im Format **'YYYYMMDD_<KATEGORIE>_<inhalt>'**.\n"
