@@ -78,7 +78,8 @@ def generate_checksum(file_path: pathlib.Path) -> str:
 def analyze_image_with_lm_studio(base64_image: str, prompt: str, original_filename: str) -> str:
     """Sendet die Base64-kodierte Bilddaten und den Prompt an das lokale LLM."""
     # Print only the filename and the LLM output for debugging
-    sys.stdout.buffer.write(f"\n--- DEBUG: Processing file for LLM: {original_filename} ---\n".encode('utf-8', 'replace'))
+    # Ensure debug output is clearly associated with the current file
+    sys.stdout.buffer.write(f"\n--- DEBUG: Initiating LLM call for: {original_filename} ---\n".encode('utf-8', 'replace'))
     sys.stdout.flush()
 
     try:
@@ -102,6 +103,7 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str, original_filena
         
         llm_output = response.choices[0].message.content.strip()
         
+        # Log LLM output clearly associated with the file
         sys.stdout.buffer.write(f"\n--- DEBUG: LLM Raw Output for {original_filename} ---\n".encode('utf-8', 'replace'))
         sys.stdout.buffer.write(llm_output.encode('utf-8', 'replace'))
         sys.stdout.buffer.write(b"\n--- END DEBUG: LLM Raw Output ---\n")
@@ -110,7 +112,8 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str, original_filena
         return llm_output
 
     except Exception as e:
-        error_message = f"FEHLER: {e}"
+        error_message = f"LLM API Error: {e}"
+        # Log LLM errors clearly associated with the file
         sys.stdout.buffer.write(f"\n--- DEBUG: LLM API Error for {original_filename} ---\n".encode('utf-8', 'replace'))
         sys.stdout.buffer.write(error_message.encode('utf-8', 'replace'))
         sys.stdout.buffer.write(b"\n--- END DEBUG: LLM API Error ---\n")
@@ -146,37 +149,50 @@ print("-" * len(header)) # Trennlinie
 
 processed_files_count = 0
 
+# Iterate through each PDF file in the directory
 for pdf_path in PDF_DIR.glob("*.pdf"):
     # --- VARIABLEN-RESET FÜR JEDE DATEI ---
+    # These variables are reset for each file to ensure isolation
     original_filename = pdf_path.name
     pdf_stem = pdf_path.stem 
     checksum = "N/A" # Default value
     new_filename_stem = ""
     status = "Error" # Default status
     error_message = ""
-    target_folder_display = "" # Variable für die Anzeige des Zielordners
+    target_folder_display = "" # Variable for displaying the target folder
     doc = None # Initialize doc to None for each file
+    model_output = "" # Initialize model_output for each file
+    name_part = ""
+    categories = [] # List for all identified categories
+    new_filename_base = "" # Reset for this file
     # --- ENDE VARIABLEN-RESET ---
 
-    # Removed the general "Processing file:" print here to avoid redundancy with debug output
+    # Print the start of processing for the current file
+    # This helps in tracking which file is being processed, especially if errors occur
+    print(f"\nProcessing file: {original_filename}...")
+    sys.stdout.flush()
 
+    # 1. Generate Checksum
     try:
         checksum = generate_checksum(pdf_path)
     except Exception as e:
         error_message = f"Checksum error: {e}"
-        # Print the row with default/error values
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        status = "Error"
+        new_filename_stem = f"CHECKSUM_ERR_{clean_filename(pdf_stem)}"
+        target_folder_display = "N/A"
+        # Print the row with default/error values and continue to the next file
+        print(f"{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         continue # Skip to next file if checksum fails
 
-    # [PDF-Öffnen und Bild-Konvertierung (PyMuPDF)]
+    # 2. PDF-Öffnen und Bild-Konvertierung (PyMuPDF)
     try:
         doc = fitz.open(pdf_path)
         if doc.page_count == 0:
             status = "Skipped"
             error_message = "No pages in PDF"
-            new_filename_stem = f"SKIPPED_{clean_filename(pdf_stem)}_{checksum}"
+            new_filename_stem = f"SKIPPED_{clean_filename(pdf_stem)}"
             target_folder_display = "N/A"
-            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+            print(f"{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
             doc.close() # Close the document before continuing
             continue
             
@@ -188,42 +204,38 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         img_data = pix.tobytes(output="jpeg", jpg_quality=85)
         image = Image.open(io.BytesIO(img_data))
         base64_img = pil_image_to_base64(image, img_format="JPEG")
-        del image 
+        del image # Free up memory
+        
     except Exception as e:
         status = "Error"
         error_message = f"Page conversion error: {e}"
-        new_filename_stem = f"ERROR_{clean_filename(pdf_stem)}_{checksum}"
+        new_filename_stem = f"PAGE_ERR_{clean_filename(pdf_stem)}"
         target_folder_display = "N/A"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        print(f"{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         if doc:
             doc.close()
         continue
 
-    # 1. ERSTELLUNG DES DYNAMISCHEN PROMPTS (mit spezifischen Schweizer Steuerkriterien)
+    # 3. Modellabfrage und Parsing
+    # Construct the dynamic prompt for the current file
     dynamic_prompt = PROMPT_TEMPLATE.format(original_filename=pdf_stem)
-
-    # 2. Modellabfrage und Parsing
-    # Pass original_filename to the analyze function for debug output
+    
+    # Call the LLM analysis function for the current file
     model_output = analyze_image_with_lm_studio(base64_img, dynamic_prompt, original_filename)
     
-    # --- RESET VARIABLEN VOR MODELL-OUTPUT-VERARBEITUNG ---
-    name_part = ""
-    categories = [] # Liste für alle identifizierten Kategorien
-    new_filename_base = "" # Reset for this file
-    # --- ENDE RESET VARIABLEN ---
-
-    if model_output.startswith("FEHLER"):
+    # Check if the LLM call resulted in an error
+    if model_output.startswith("LLM API Error:"):
         status = "Error"
-        error_message = f"Model API error: {model_output}"
-        new_filename_stem = f"MODEL_ERROR_{clean_filename(pdf_stem)}_{checksum}"
+        error_message = model_output # Use the full error message from the function
+        new_filename_stem = f"LLM_ERR_{clean_filename(pdf_stem)}"
         target_folder_display = "N/A"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        print(f"{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         if doc:
             doc.close()
-        continue
+        continue # Move to the next file
 
+    # 4. Parse the LLM output
     try:
-        # Versuche, die Ausgabe zu parsen
         parts = model_output.split('|', 1)
         if len(parts) == 2:
             name_part = parts[0]
@@ -231,82 +243,87 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
             
             new_filename_base = clean_filename(name_part)
             
-            # Parse die Kategorien
+            # Parse the categories
             raw_categories = categories_part.split('#')
             valid_categories = []
             for cat in raw_categories:
                 cat_upper = cat.strip().upper()
-                # Liste der erlaubten Kategorien aus dem Prompt
+                # List of allowed categories from the prompt
                 allowed_cats = ['STEUER', 'RECHNUNGEN', 'FINANZEN_ALLGEMEIN', 'VERSICHERUNG', 'OTHER']
                 if cat_upper in allowed_cats:
                     valid_categories.append(cat_upper)
                 else:
-                    # Wenn eine Kategorie ungültig ist, behandle sie als Fehler oder ignoriere sie
-                    # Hier entscheiden wir uns, sie zu ignorieren und ggf. 'OTHER' zu verwenden, falls keine gültigen gefunden werden
+                    # If a category is invalid, we ignore it. If no valid categories are found, we default to 'OTHER'.
                     pass 
             
-            if not valid_categories: # Wenn keine gültigen Kategorien gefunden wurden
+            if not valid_categories: # If no valid categories were found
                 valid_categories.append('OTHER')
-                error_message = f"Model returned invalid categories: '{categories_part}'. Defaulting to 'OTHER'."
+                # Log this as a warning or informational message, not necessarily a file error
+                warning_msg = f"Model returned invalid categories: '{categories_part}'. Defaulting to 'OTHER'."
+                print(f"  Warning for {original_filename}: {warning_msg}")
+                # We don't set an error_message for the file row here, as it's not a critical failure.
             
-            categories = valid_categories # Setze die gültigen Kategorien
+            categories = valid_categories # Set the valid categories
         else:
-            # Wenn die Ausgabe nicht das erwartete Format hat (kein '|' gefunden)
+            # If the output does not have the expected format (no '|' found)
             raise ValueError("Output does not contain the expected '|' separator.")
 
     except ValueError as ve:
-        # Fehlerbehandlung für ungültiges Format oder fehlenden Separator
-        error_message = f"Invalid model output format or missing separator: '{model_output}'. Details: {ve}"
-        new_filename_base = f"INVALID_FORMAT_{clean_filename(pdf_stem)}" # Fallback-Dateiname
-        categories = ['OTHER'] # Fallback-Kategorie
-        status = "Error" # Markiere als Fehler, da das Format nicht stimmt
-        # Print error but continue processing with fallback name
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        # Error handling for invalid format or missing separator
+        error_message = f"Invalid model output format: '{model_output}'. Details: {ve}"
+        new_filename_base = f"INVALID_FORMAT_{clean_filename(pdf_stem)}" # Fallback filename
+        categories = ['OTHER'] # Fallback category
+        status = "Error" # Mark as error because format is wrong
+        # Print error for the file row and continue to the next file
+        print(f"{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         if doc:
             doc.close()
-        continue # Fahre mit der nächsten Datei fort, da die Verarbeitung hier fehlschlug
-    
-    # Validiere Format und erstelle den neuen Dateinamen-Stamm
+        continue # Proceed to the next file as processing failed here
+
+    # 5. Validate format and create the new filename stem
     if not re.match(r'^\d{8}_.+', new_filename_base):
-        # Wenn der generierte Dateiname nicht dem YYYYMMDD_ Format entspricht
+        # If the generated filename does not match the YYYYMMDD_ format
         error_message = f"Filename format invalid (expected YYYYMMDD_...): '{new_filename_base}'"
-        new_filename_base = f"INVALID_DATE_{clean_filename(pdf_stem)}" # Fallback-Dateiname
-        # Continue processing with fallback name, but log the error
-        
+        new_filename_base = f"INVALID_DATE_{clean_filename(pdf_stem)}" # Fallback filename
+        status = "Error" # Mark as error if date format is wrong
+        # Print error for the file row and continue to the next file
+        print(f"{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        if doc:
+            doc.close()
+        continue # Proceed to the next file
+
     final_filename_stem = f"{new_filename_base}_{checksum}"
 
-    # Bestimme den Zielordner basierend auf den Kategorien
-    # Wenn mehrere Kategorien vorhanden sind, wird die erste als Hauptordner verwendet.
-    # Dies kann angepasst werden, falls eine komplexere Logik gewünscht ist.
+    # 6. Determine the target folder based on categories
+    # If multiple categories exist, use the first one as the primary folder.
     primary_category = categories[0] if categories else 'OTHER'
-    # Ensure the category name is uppercase for directory creation
     primary_category_upper = primary_category.upper() 
     TARGET_SUB_DIR = pathlib.Path(primary_category_upper)
     TARGET_FULL_DIR = OUTPUT_BASE_DIR / TARGET_SUB_DIR
     
-    # Erstelle den Zielordner, falls er nicht existiert
+    # Create the target directory if it doesn't exist
     try:
         TARGET_FULL_DIR.mkdir(parents=True, exist_ok=True)
-        target_folder_display = TARGET_SUB_DIR.name # Nur der Name des Unterordners für die Anzeige
+        target_folder_display = TARGET_SUB_DIR.name # Only the subdirectory name for display
     except OSError as e:
         error_message = f"Could not create target directory '{TARGET_FULL_DIR}': {e}"
         status = "Error"
-        new_filename_stem = f"DIR_ERROR_{clean_filename(pdf_stem)}_{checksum}"
+        new_filename_stem = f"DIR_ERR_{clean_filename(pdf_stem)}"
         target_folder_display = "N/A"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        print(f"{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         if doc:
             doc.close()
         continue
 
-    # Setze den Status basierend auf den Kategorien
+    # 7. Set the status based on categories
     if "STEUER" in categories:
-        status = "Success (Tax Relevant)"
+        status = "Success (Tax)"
     elif "OTHER" in categories:
         status = "Success (Other)"
     else:
         status = "Success" # Default success for other categories
 
-    # 3. Speichern mit Kollisionsschutz
+    # 8. Save with collision protection
     current_filename_stem_for_save = final_filename_stem 
     
     saved = False
@@ -319,26 +336,27 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
                 shutil.copy2(pdf_path, new_path)
                 new_filename_stem = current_filename_stem_for_save # Populate new_filename_stem on success
                 saved = True
-                break # Erfolgreich gespeichert, Schleife beenden
+                break # Successfully saved, exit loop
             except Exception as e:
                 error_message = f"File copy error: {e}"
                 status = "Error"
-                new_filename_stem = f"SAVE_ERROR_{clean_filename(pdf_stem)}_{checksum}"
+                new_filename_stem = f"SAVE_ERR_{clean_filename(pdf_stem)}"
                 target_folder_display = "N/A"
-                break # Fehler beim Kopieren, Schleife beenden
+                break # Error during copy, exit loop
         else:
-            # Wenn die Datei mit Checksumme bereits existiert, generiere einen neuen Suffix
+            # If file with checksum already exists, generate a new suffix
             rand_suffix = random.randint(100, 999) 
             current_filename_stem_for_save = f"{final_filename_stem}_{rand_suffix}"
-            # print(f"  Dateiname '{current_filename}' existiert bereits. Versuche neuen Namen: '{current_filename_stem_for_save}.pdf'") # Optional: Log this
+            # Optional: Log this attempt
+            # print(f"  Filename '{current_filename}' already exists. Trying new name: '{current_filename_stem_for_save}.pdf'") 
             
             if attempt == MAX_RETRIES - 1:
                 error_message = f"Max retries ({MAX_RETRIES}) reached for saving."
                 status = "Error"
-                new_filename_stem = f"SAVE_MAX_RETRIES_{clean_filename(pdf_stem)}_{checksum}"
+                new_filename_stem = f"SAVE_MAX_RETRIES_{clean_filename(pdf_stem)}"
                 target_folder_display = "N/A"
-                break # Maximale Wiederholungen erreicht
-        
+                break # Max retries reached
+
     if not saved:
         # If not saved after retries, ensure an error status and message are set
         if status != "Error": # Avoid overwriting a specific error message
@@ -350,7 +368,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
             new_filename_stem = current_filename_stem_for_save
 
     # --- TABELLENZEILE AUSGABE ---
-    # Truncate long filenames if they exceed column width
+    # Truncate long filenames if they exceed column width for display
     display_original = (original_filename[:COL_WIDTH_ORIGINAL-3] + '...') if len(original_filename) > COL_WIDTH_ORIGINAL else original_filename
     display_new_filename = (new_filename_stem[:COL_WIDTH_NEWNAME-3] + '...') if len(new_filename_stem) > COL_WIDTH_NEWNAME else new_filename_stem
     
@@ -359,7 +377,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         f"{checksum:<{COL_WIDTH_CHECKSUM}} | "
         f"{display_new_filename:<{COL_WIDTH_NEWNAME}} | "
         f"{status:<{COL_WIDTH_STATUS}} | "
-        f"{target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | " # Zielordner anzeigen
+        f"{target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | " # Display target folder
         f"{error_message}"
     )
     print(row)
@@ -367,7 +385,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     processed_files_count += 1
 
     if doc:
-        doc.close()
+        doc.close() # Ensure the document is closed after processing
 
 print("-" * len(header)) # Trennlinie am Ende
 print(f"\nVerarbeitung abgeschlossen. {processed_files_count} Dateien wurden analysiert.")
