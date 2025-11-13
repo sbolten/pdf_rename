@@ -221,41 +221,54 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         continue
 
     try:
-        name_part, categories_part = model_output.split('|', 1)
-        new_filename_base = clean_filename(name_part)
-        
-        # Parse die Kategorien
-        raw_categories = categories_part.split('#')
-        valid_categories = []
-        for cat in raw_categories:
-            cat_upper = cat.strip().upper()
-            # Liste der erlaubten Kategorien aus dem Prompt
-            allowed_cats = ['STEUER', 'RECHNUNGEN', 'FINANZEN_ALLGEMEIN', 'VERSICHERUNG', 'OTHER']
-            if cat_upper in allowed_cats:
-                valid_categories.append(cat_upper)
-            else:
-                # Wenn eine Kategorie ungültig ist, behandle sie als Fehler oder ignoriere sie
-                # Hier entscheiden wir uns, sie zu ignorieren und ggf. 'OTHER' zu verwenden, falls keine gültigen gefunden werden
-                pass 
-        
-        if not valid_categories: # Wenn keine gültigen Kategorien gefunden wurden
-            valid_categories.append('OTHER')
-            error_message = f"Model returned invalid categories: '{categories_part}'. Defaulting to 'OTHER'."
-        
-        categories = valid_categories # Setze die gültigen Kategorien
+        # Versuche, die Ausgabe zu parsen
+        parts = model_output.split('|', 1)
+        if len(parts) == 2:
+            name_part = parts[0]
+            categories_part = parts[1]
+            
+            new_filename_base = clean_filename(name_part)
+            
+            # Parse die Kategorien
+            raw_categories = categories_part.split('#')
+            valid_categories = []
+            for cat in raw_categories:
+                cat_upper = cat.strip().upper()
+                # Liste der erlaubten Kategorien aus dem Prompt
+                allowed_cats = ['STEUER', 'RECHNUNGEN', 'FINANZEN_ALLGEMEIN', 'VERSICHERUNG', 'OTHER']
+                if cat_upper in allowed_cats:
+                    valid_categories.append(cat_upper)
+                else:
+                    # Wenn eine Kategorie ungültig ist, behandle sie als Fehler oder ignoriere sie
+                    # Hier entscheiden wir uns, sie zu ignorieren und ggf. 'OTHER' zu verwenden, falls keine gültigen gefunden werden
+                    pass 
+            
+            if not valid_categories: # Wenn keine gültigen Kategorien gefunden wurden
+                valid_categories.append('OTHER')
+                error_message = f"Model returned invalid categories: '{categories_part}'. Defaulting to 'OTHER'."
+            
+            categories = valid_categories # Setze die gültigen Kategorien
+        else:
+            # Wenn die Ausgabe nicht das erwartete Format hat (kein '|' gefunden)
+            raise ValueError("Output does not contain the expected '|' separator.")
 
-    except ValueError:
-        error_message = f"Invalid model output format: '{model_output}'"
-        new_filename_base = f"INVALID_FORMAT_{clean_filename(pdf_stem)}"
+    except ValueError as ve:
+        # Fehlerbehandlung für ungültiges Format oder fehlenden Separator
+        error_message = f"Invalid model output format or missing separator: '{model_output}'. Details: {ve}"
+        new_filename_base = f"INVALID_FORMAT_{clean_filename(pdf_stem)}" # Fallback-Dateiname
         categories = ['OTHER'] # Fallback-Kategorie
+        status = "Error" # Markiere als Fehler, da das Format nicht stimmt
         # Print error but continue processing with fallback name
         print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
-        
+        if doc:
+            doc.close()
+        continue # Fahre mit der nächsten Datei fort, da die Verarbeitung hier fehlschlug
     
     # Validiere Format und erstelle den neuen Dateinamen-Stamm
     if not re.match(r'^\d{8}_.+', new_filename_base):
+        # Wenn der generierte Dateiname nicht dem YYYYMMDD_ Format entspricht
         error_message = f"Filename format invalid (expected YYYYMMDD_...): '{new_filename_base}'"
-        new_filename_base = f"INVALID_DATE_{clean_filename(pdf_stem)}"
+        new_filename_base = f"INVALID_DATE_{clean_filename(pdf_stem)}" # Fallback-Dateiname
         # Continue processing with fallback name, but log the error
         
     final_filename_stem = f"{new_filename_base}_{checksum}"
