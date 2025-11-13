@@ -114,12 +114,14 @@ COL_WIDTH_ORIGINAL = 40
 COL_WIDTH_CHECKSUM = 12
 COL_WIDTH_NEWNAME = 40
 COL_WIDTH_STATUS = 15
+COL_WIDTH_TARGET_FOLDER = 20 # Neue Spalte für den Zielordner
 
 header = (
     f"{'Original Filename':<{COL_WIDTH_ORIGINAL}} | "
     f"{'Checksum':<{COL_WIDTH_CHECKSUM}} | "
     f"{'New Filename':<{COL_WIDTH_NEWNAME}} | "
     f"{'Status':<{COL_WIDTH_STATUS}} | "
+    f"{'Target Folder':<{COL_WIDTH_TARGET_FOLDER}} | " # Zielordner in Header
     f"{'Error Message'}"
 )
 print("\n" + header)
@@ -134,12 +136,13 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     new_filename_stem = ""
     status = "Error"
     error_message = ""
+    target_folder_display = "" # Variable für die Anzeige des Zielordners
     
     try:
         checksum = generate_checksum(pdf_path)
     except Exception as e:
         error_message = f"Checksum error: {e}"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         continue # Skip to next file if checksum fails
 
     # [PDF-Öffnen und Bild-Konvertierung (PyMuPDF)]
@@ -150,7 +153,8 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
             status = "Skipped"
             error_message = "No pages in PDF"
             new_filename_stem = f"SKIPPED_{clean_filename(pdf_stem)}_{checksum}"
-            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+            target_folder_display = "N/A"
+            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
             continue
             
         page = doc.load_page(0)
@@ -166,7 +170,8 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         status = "Error"
         error_message = f"Page conversion error: {e}"
         new_filename_stem = f"ERROR_{clean_filename(pdf_stem)}_{checksum}"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        target_folder_display = "N/A"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         if doc:
             doc.close()
         continue
@@ -181,7 +186,8 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         status = "Error"
         error_message = f"Model API error: {model_output}"
         new_filename_stem = f"MODEL_ERROR_{clean_filename(pdf_stem)}_{checksum}"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        target_folder_display = "N/A"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         if doc:
             doc.close()
         continue
@@ -196,13 +202,14 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         if marker not in ["STEUER_JA", "STEUER_NEIN"]:
             marker = "STEUER_UNBEKANNT"
             error_message = f"Invalid tax marker '{marker_part}' received."
-            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
-            # Continue processing with unknown marker, but log the error
+            # Print error but continue processing with unknown marker
+            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
             
     except ValueError:
         error_message = f"Invalid model output format: '{model_output}'"
         new_filename_base = f"INVALID_FORMAT_{clean_filename(pdf_stem)}"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_base:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {error_message}")
+        target_folder_display = "N/A"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_base:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
         # Continue processing with fallback name, but log the error
     
     # Validiere Format und erstelle den neuen Dateinamen-Stamm
@@ -223,6 +230,8 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         status = "Success (Unknown Tax)"
     else:
         status = "Success" # Default success
+    
+    target_folder_display = TARGET_BASE_DIR.name # Get the name of the target folder for display
 
     # 3. Speichern mit Kollisionsschutz
     current_filename_stem_for_save = final_filename_stem 
@@ -235,12 +244,14 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         if not new_path.exists():
             try:
                 shutil.copy2(pdf_path, new_path)
+                new_filename_stem = current_filename_stem_for_save # Populate new_filename_stem on success
                 saved = True
                 break # Erfolgreich gespeichert, Schleife beenden
             except Exception as e:
                 error_message = f"File copy error: {e}"
                 status = "Error"
                 new_filename_stem = f"SAVE_ERROR_{clean_filename(pdf_stem)}_{checksum}"
+                target_folder_display = "N/A"
                 break # Fehler beim Kopieren, Schleife beenden
         else:
             # Wenn die Datei mit Checksumme bereits existiert, generiere einen neuen Suffix
@@ -252,6 +263,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
                 error_message = f"Max retries ({MAX_RETRIES}) reached for saving."
                 status = "Error"
                 new_filename_stem = f"SAVE_MAX_RETRIES_{clean_filename(pdf_stem)}_{checksum}"
+                target_folder_display = "N/A"
                 break # Maximale Wiederholungen erreicht
         
     if not saved:
@@ -274,6 +286,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         f"{checksum:<{COL_WIDTH_CHECKSUM}} | "
         f"{display_new_filename:<{COL_WIDTH_NEWNAME}} | "
         f"{status:<{COL_WIDTH_STATUS}} | "
+        f"{target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | " # Zielordner anzeigen
         f"{error_message}"
     )
     print(row)
