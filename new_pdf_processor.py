@@ -10,9 +10,8 @@ import re
 import hashlib # Importiere hashlib für Checksummen
 
 # --- KONFIGURATION ---
-# Standard-PDF-Verzeichnis, falls kein Argument übergeben wird.
-# Sie können diesen Pfad nach Bedarf anpassen.
-DEFAULT_PDF_DIR = pathlib.Path("./pdfs_to_process") # Standardmäßig ein Unterordner namens 'pdfs_to_process'
+# Hardcodiertes Standard-PDF-Verzeichnis
+DEFAULT_PDF_DIR = pathlib.Path(r"C:\Users\steph\Documents\dev\python_ai\pdf")
 
 # Standardwerte für URL und Modell, falls nicht übergeben
 DEFAULT_TARGET_URL = "http://127.0.0.1:1234/v1"
@@ -21,7 +20,7 @@ DEFAULT_MODEL_NAME = "qwen/qwen3-vl-4b"
 # Holen Sie sich die Argumente, aber verwenden Sie Standardwerte, wenn sie nicht vorhanden sind.
 if len(sys.argv) < 2:
     pdf_dir_arg = str(DEFAULT_PDF_DIR)
-    print(f"Kein PDF-Verzeichnis angegeben. Verwende Standardverzeichnis: '{pdf_dir_arg}'")
+    print(f"Kein PDF-Verzeichnis angegeben. Verwende hartcodiertes Standardverzeichnis: '{pdf_dir_arg}'")
 else:
     pdf_dir_arg = sys.argv[1]
 
