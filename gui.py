@@ -3,10 +3,12 @@ import os
 import pathlib
 import subprocess
 import threading
+import requests # Import the requests library
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QFileDialog,
-    QTextEdit, QProgressBar, QGroupBox, QFormLayout
+    QTextEdit, QProgressBar, QGroupBox, QFormLayout,
+    QComboBox # Import QComboBox for model selection
 )
 from PyQt6.QtCore import Qt, QProcess
 
@@ -55,10 +57,18 @@ class PDFProcessorGUI(QWidget):
         self.target_url_input.setPlaceholderText("URL des LLM-Servers")
         config_layout.addRow(self.target_url_label, self.target_url_input)
 
+        # --- Modellname Auswahl ---
+        model_row_layout = QHBoxLayout()
         self.model_name_label = QLabel("Modellname:")
-        self.model_name_input = QLineEdit()
-        self.model_name_input.setPlaceholderText("Name des zu verwendenden LLM-Modells")
-        config_layout.addRow(self.model_name_label, self.model_name_input)
+        self.model_name_combobox = QComboBox() # Verwende QComboBox
+        self.model_name_combobox.setPlaceholderText("Wählen Sie ein Modell")
+        self.fetch_models_button = QPushButton("Modelle laden")
+        self.fetch_models_button.clicked.connect(self.fetch_lm_studio_models)
+        
+        model_row_layout.addWidget(self.model_name_combobox)
+        model_row_layout.addWidget(self.fetch_models_button)
+        
+        config_layout.addRow(self.model_name_label, model_row_layout)
 
         self.prompt_label = QLabel("Prompt Vorlage:")
         self.prompt_input = QTextEdit()
@@ -105,14 +115,84 @@ class PDFProcessorGUI(QWidget):
 
         self.setLayout(main_layout)
 
+    def fetch_lm_studio_models(self):
+        """Ruft die Liste der Modelle von LM Studio ab und füllt die ComboBox."""
+        lm_studio_url = self.target_url_input.text().strip()
+        if not lm_studio_url:
+            self.output_text.append("<font color='red'>Bitte geben Sie zuerst die LM Studio Target URL an.</font>")
+            return
+
+        # Stelle sicher, dass die URL mit /v1 endet, falls nicht schon geschehen
+        if not lm_studio_url.endswith('/v1'):
+            lm_studio_url += '/v1'
+            self.target_url_input.setText(lm_studio_url) # Aktualisiere das Feld
+
+        models_url = f"{lm_studio_url}/models"
+        self.output_text.append(f"Versuche, Modelle von {models_url} abzurufen...")
+
+        try:
+            response = requests.get(models_url, timeout=5) # Timeout von 5 Sekunden
+            response.raise_for_status() # Löst eine Ausnahme für schlechte Statuscodes aus (4xx oder 5xx)
+            
+            models_data = response.json()
+            
+            self.model_name_combobox.clear() # Leere die aktuelle Liste
+            
+            if not models_data or 'models' not in models_data:
+                self.output_text.append("<font color='orange'>Keine Modelle gefunden oder unerwartetes Format von LM Studio.</font>")
+                return
+
+            available_models = [model['name'] for model in models_data['models']]
+            
+            if not available_models:
+                self.output_text.append("<font color='orange'>Keine Modelle in der Antwort von LM Studio gefunden.</font>")
+                return
+
+            self.model_name_combobox.addItems(available_models)
+            self.output_text.append(f"<font color='green'>{len(available_models)} Modelle von LM Studio geladen.</font>")
+
+            # Setze das erste Modell als Standard, falls vorhanden
+            if available_models:
+                self.model_name_combobox.setCurrentIndex(0)
+                # Aktualisiere auch das config_manager-Objekt mit dem ersten Modell
+                # Dies geschieht, wenn die Konfiguration gespeichert wird oder beim Laden
+                # Hier setzen wir nur die ComboBox, die Konfiguration wird beim Speichern aktualisiert.
+
+
+        except requests.exceptions.ConnectionError:
+            self.output_text.append(f"<font color='red'>Fehler: Konnte keine Verbindung zu LM Studio unter {models_url} herstellen. Stellen Sie sicher, dass LM Studio läuft und die URL korrekt ist.</font>")
+        except requests.exceptions.Timeout:
+            self.output_text.append(f"<font color='red'>Fehler: Zeitüberschreitung beim Abrufen der Modelle von {models_url}. LM Studio antwortet möglicherweise nicht.</font>")
+        except requests.exceptions.RequestException as e:
+            self.output_text.append(f"<font color='red'>Fehler beim Abrufen der Modelle von LM Studio: {e}</font>")
+        except Exception as e:
+            self.output_text.append(f"<font color='red'>Ein unerwarteter Fehler ist aufgetreten: {e}</font>")
+
+
     def load_initial_config(self):
         """Lädt die Konfiguration beim Start der Anwendung und wendet sie auf die GUI an."""
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            self.model_name_input,
+            self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet, aber die Methode erwartet es
             self.prompt_input
         )
+        # Lade Modelle, wenn die URL vorhanden ist
+        if self.target_url_input.text():
+            self.fetch_lm_studio_models()
+        
+        # Setze den Modellnamen in der ComboBox basierend auf der geladenen Konfiguration
+        current_model_name = self.config_manager.config.get("model_name")
+        if current_model_name:
+            model_index = self.model_name_combobox.findText(current_model_name)
+            if model_index != -1:
+                self.model_name_combobox.setCurrentIndex(model_index)
+            else:
+                # Wenn das Modell aus der config nicht in der ComboBox ist, füge es hinzu
+                self.model_name_combobox.addItem(current_model_name)
+                self.model_name_combobox.setCurrentText(current_model_name)
+
+
         # Überprüfe und aktiviere den Start-Button basierend auf dem geladenen Verzeichnis
         if os.path.isdir(self.pdf_dir_input.text()):
             self.start_button.setEnabled(True)
@@ -121,12 +201,13 @@ class PDFProcessorGUI(QWidget):
 
     def save_current_config(self):
         """Speichert die aktuellen GUI-Einstellungen in die Konfigurationsdatei."""
-        self.config_manager.update_config_from_gui(
-            self.pdf_dir_input,
-            self.target_url_input,
-            self.model_name_input,
-            self.prompt_input
-        )
+        # Aktualisiere die Konfiguration mit den Werten aus den GUI-Elementen
+        self.config_manager.config["pdf_dir"] = self.pdf_dir_input.text()
+        self.config_manager.config["target_url"] = self.target_url_input.text()
+        # Hole den ausgewählten Modellnamen aus der ComboBox
+        self.config_manager.config["model_name"] = self.model_name_combobox.currentText()
+        self.config_manager.config["prompt_template"] = self.prompt_input.toPlainText()
+
         if self.config_manager.save_config(self.config_manager.get_current_config()):
             self.output_text.append("<font color='green'>Konfiguration erfolgreich gespeichert.</font>")
         else:
@@ -138,9 +219,25 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            self.model_name_input,
+            self.model_name_input, # Dieses Feld wird nicht mehr direkt verwendet
             self.prompt_input
         )
+        
+        # Setze den Modellnamen in der ComboBox basierend auf der geladenen Konfiguration
+        current_model_name = self.config_manager.config.get("model_name")
+        if current_model_name:
+            model_index = self.model_name_combobox.findText(current_model_name)
+            if model_index != -1:
+                self.model_name_combobox.setCurrentIndex(model_index)
+            else:
+                # Wenn das Modell aus der config nicht in der ComboBox ist, füge es hinzu
+                self.model_name_combobox.addItem(current_model_name)
+                self.model_name_combobox.setCurrentText(current_model_name)
+
+        # Lade Modelle, wenn die URL vorhanden ist
+        if self.target_url_input.text():
+            self.fetch_lm_studio_models()
+
         self.output_text.append("<font color='blue'>Konfiguration geladen.</font>")
         # Überprüfe und aktiviere den Start-Button basierend auf dem geladenen Verzeichnis
         if os.path.isdir(self.pdf_dir_input.text()):
@@ -161,7 +258,8 @@ class PDFProcessorGUI(QWidget):
     def start_processing(self):
         pdf_dir = self.pdf_dir_input.text()
         target_url = self.target_url_input.text()
-        model_name = self.model_name_input.text()
+        # Hole den ausgewählten Modellnamen aus der ComboBox
+        model_name = self.model_name_combobox.currentText() 
         prompt_template = self.prompt_input.toPlainText()
 
         if not pdf_dir or not os.path.isdir(pdf_dir):
@@ -185,7 +283,8 @@ class PDFProcessorGUI(QWidget):
         self.start_button.setEnabled(False)
         self.browse_pdf_dir_button.setEnabled(False)
         self.target_url_input.setEnabled(False)
-        self.model_name_input.setEnabled(False)
+        self.model_name_combobox.setEnabled(False) # Deaktiviere ComboBox
+        self.fetch_models_button.setEnabled(False) # Deaktiviere Button
         self.prompt_input.setEnabled(False)
         self.save_config_button.setEnabled(False) # Deaktiviere Buttons während der Verarbeitung
         self.load_config_button.setEnabled(False)
@@ -262,7 +361,8 @@ class PDFProcessorGUI(QWidget):
         self.start_button.setEnabled(True)
         self.browse_pdf_dir_button.setEnabled(True)
         self.target_url_input.setEnabled(True)
-        self.model_name_input.setEnabled(True)
+        self.model_name_combobox.setEnabled(True) # Aktiviere ComboBox wieder
+        self.fetch_models_button.setEnabled(True) # Aktiviere Button wieder
         self.prompt_input.setEnabled(True)
         self.save_config_button.setEnabled(True) # Aktiviere Buttons wieder
         self.load_config_button.setEnabled(True)
