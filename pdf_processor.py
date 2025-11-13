@@ -95,9 +95,27 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
             max_tokens=85, # Für detaillierten Namen + Marker
             temperature=0.1, 
         )
+        
+        # Explicitly clear context or resources if the client object allows for it.
+        # For the OpenAI Python client, there isn't a direct method to "eject" or "clear context"
+        # for a single API call like this. The client is designed to be stateless per call.
+        # However, if the underlying LM Studio server maintains context, we might need to
+        # ensure the request itself doesn't carry over previous conversation state.
+        # The current structure of sending a single user message with the image should
+        # inherently prevent cross-conversation context from being maintained by the client.
+        # If LM Studio server-side context is the issue, it might require specific server configurations
+        # or a different API endpoint if available.
+        
+        # For now, we rely on the stateless nature of the client call.
+        # If issues persist, further investigation into LM Studio's server-side context management
+        # would be needed.
+
         return response.choices[0].message.content.strip()
 
     except Exception as e:
+        # In case of an error, ensure any potential resources are cleaned up.
+        # For the OpenAI client, this is generally handled by Python's garbage collection.
+        # If specific cleanup is needed for LM Studio, it would depend on its API.
         return f"FEHLER: {e}"
 
 # --- HAUPTPROGRAMM ---
