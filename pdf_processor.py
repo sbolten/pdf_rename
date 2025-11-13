@@ -41,12 +41,12 @@ except Exception as e:
     sys.exit(1)
 
 # ZIELVERZEICHNISSE (werden im Arbeitsverzeichnis erstellt)
-OUTPUT_DIR_ANDERE = PDF_DIR / "andere"
-OUTPUT_DIR_STEUER = PDF_DIR / "steuer_relevant"
+# Die Zielordner werden jetzt dynamisch basierend auf den Kategorien erstellt
+# Wir definieren hier nur die Basisverzeichnisse, die Unterordner werden bei Bedarf erstellt
+OUTPUT_BASE_DIR = PDF_DIR # Die Unterordner werden direkt unter dem PDF_DIR erstellt
 
-# Erstelle beide Zielordner
-OUTPUT_DIR_ANDERE.mkdir(exist_ok=True)
-OUTPUT_DIR_STEUER.mkdir(exist_ok=True)
+# Erstelle die Basisverzeichnisse, falls sie nicht existieren
+OUTPUT_BASE_DIR.mkdir(exist_ok=True)
 
 
 # --- HILFSFUNKTIONEN ---
@@ -92,7 +92,7 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
                     ],
                 }
             ],
-            max_tokens=85, # Für detaillierten Namen + Marker
+            max_tokens=150, # Für detaillierten Namen + Marker
             temperature=0.1, 
         )
         
@@ -123,8 +123,8 @@ if not PDF_DIR.is_dir():
     print(f"Fehler: '{PDF_DIR}' ist kein gültiges Verzeichnis.")
     sys.exit(1)
 
-print(f"Starte Dateiumbenennung mit Modell '{MODEL_NAME}' in: {PDF_DIR}")
-print(f"Zielordner: '{OUTPUT_DIR_ANDERE.name}' und '{OUTPUT_DIR_STEUER.name}'")
+print(f"Starte Dateiumbenennung und -verschiebung mit Modell '{MODEL_NAME}' in: {PDF_DIR}")
+print(f"Zielordner werden basierend auf Kategorien erstellt unter: {OUTPUT_BASE_DIR}")
 
 # --- TABELLEN-HEADER ---
 # Definiere die Spaltenbreiten für eine bessere Lesbarkeit
@@ -212,23 +212,39 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
 
     marker = "STEUER_UNBEKANNT"
     name_part = ""
+    categories = [] # Liste für alle identifizierten Kategorien
     
     try:
-        name_part, marker_part = model_output.split('|', 1)
+        name_part, categories_part = model_output.split('|', 1)
         new_filename_base = clean_filename(name_part)
-        marker = marker_part.strip().upper()
-        if marker not in ["STEUER_JA", "STEUER_NEIN"]:
-            marker = "STEUER_UNBEKANNT"
-            error_message = f"Invalid tax marker '{marker_part}' received."
-            # Print error but continue processing with unknown marker
-            print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
-            
+        
+        # Parse die Kategorien
+        raw_categories = categories_part.split('#')
+        valid_categories = []
+        for cat in raw_categories:
+            cat_upper = cat.strip().upper()
+            # Liste der erlaubten Kategorien aus dem Prompt
+            allowed_cats = ['STEUER', 'RECHNUNGEN', 'FINANZEN_ALLGEMEIN', 'VERSICHERUNG', 'OTHER']
+            if cat_upper in allowed_cats:
+                valid_categories.append(cat_upper)
+            else:
+                # Wenn eine Kategorie ungültig ist, behandle sie als Fehler oder ignoriere sie
+                # Hier entscheiden wir uns, sie zu ignorieren und ggf. 'OTHER' zu verwenden, falls keine gültigen gefunden werden
+                pass 
+        
+        if not valid_categories: # Wenn keine gültigen Kategorien gefunden wurden
+            valid_categories.append('OTHER')
+            error_message = f"Model returned invalid categories: '{categories_part}'. Defaulting to 'OTHER'."
+        
+        categories = valid_categories # Setze die gültigen Kategorien
+
     except ValueError:
         error_message = f"Invalid model output format: '{model_output}'"
         new_filename_base = f"INVALID_FORMAT_{clean_filename(pdf_stem)}"
-        target_folder_display = "N/A"
-        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_base:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
-        # Continue processing with fallback name, but log the error
+        categories = ['OTHER'] # Fallback-Kategorie
+        # Print error but continue processing with fallback name
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {'N/A':<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        
     
     # Validiere Format und erstelle den neuen Dateinamen-Stamm
     if not re.match(r'^\d{8}_.+', new_filename_base):
@@ -238,18 +254,34 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
         
     final_filename_stem = f"{new_filename_base}_{checksum}"
 
-    # Bestimme den Zielordner und setze den Status
-    TARGET_BASE_DIR = OUTPUT_DIR_ANDERE
-    status = "Success" # Assume success unless an error occurs during saving
-    if marker == "STEUER_JA":
-        TARGET_BASE_DIR = OUTPUT_DIR_STEUER
-        status = "Success (Tax Relevant)"
-    elif marker == "STEUER_UNBEKANNT":
-        status = "Success (Unknown Tax)"
-    else:
-        status = "Success" # Default success
+    # Bestimme den Zielordner basierend auf den Kategorien
+    # Wenn mehrere Kategorien vorhanden sind, wird die erste als Hauptordner verwendet.
+    # Dies kann angepasst werden, falls eine komplexere Logik gewünscht ist.
+    primary_category = categories[0] if categories else 'OTHER'
+    TARGET_SUB_DIR = pathlib.Path(primary_category)
+    TARGET_FULL_DIR = OUTPUT_BASE_DIR / TARGET_SUB_DIR
     
-    target_folder_display = TARGET_BASE_DIR.name # Get the name of the target folder for display
+    # Erstelle den Zielordner, falls er nicht existiert
+    try:
+        TARGET_FULL_DIR.mkdir(parents=True, exist_ok=True)
+        target_folder_display = TARGET_SUB_DIR.name # Nur der Name des Unterordners für die Anzeige
+    except OSError as e:
+        error_message = f"Could not create target directory '{TARGET_FULL_DIR}': {e}"
+        status = "Error"
+        new_filename_stem = f"DIR_ERROR_{clean_filename(pdf_stem)}_{checksum}"
+        target_folder_display = "N/A"
+        print(f"\n{original_filename:<{COL_WIDTH_ORIGINAL}} | {checksum:<{COL_WIDTH_CHECKSUM}} | {new_filename_stem:<{COL_WIDTH_NEWNAME}} | {status:<{COL_WIDTH_STATUS}} | {target_folder_display:<{COL_WIDTH_TARGET_FOLDER}} | {error_message}")
+        if doc:
+            doc.close()
+        continue
+
+    # Setze den Status basierend auf den Kategorien
+    if "STEUER" in categories:
+        status = "Success (Tax Relevant)"
+    elif "OTHER" in categories:
+        status = "Success (Other)"
+    else:
+        status = "Success" # Default success for other categories
 
     # 3. Speichern mit Kollisionsschutz
     current_filename_stem_for_save = final_filename_stem 
@@ -257,7 +289,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     saved = False
     for attempt in range(MAX_RETRIES):
         current_filename = f"{current_filename_stem_for_save}.pdf"
-        new_path = TARGET_BASE_DIR / current_filename
+        new_path = TARGET_FULL_DIR / current_filename
 
         if not new_path.exists():
             try:
