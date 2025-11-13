@@ -77,9 +77,11 @@ def generate_checksum(file_path: pathlib.Path) -> str:
 
 def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
     """Sendet die Base64-kodierte Bilddaten und den Prompt an das lokale LLM."""
-    print(f"\n--- DEBUG: LLM Input Prompt ---")
-    print(prompt)
-    print(f"--- END DEBUG: LLM Input Prompt ---")
+    # Use sys.stdout.buffer.write and encode to handle potential Unicode issues
+    sys.stdout.buffer.write(b"\n--- DEBUG: LLM Input Prompt ---\n")
+    sys.stdout.buffer.write(prompt.encode('utf-8', 'replace'))
+    sys.stdout.buffer.write(b"\n--- END DEBUG: LLM Input Prompt ---\n")
+    sys.stdout.flush()
 
     try:
         response = client.chat.completions.create(
@@ -116,9 +118,10 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
 
         llm_output = response.choices[0].message.content.strip()
         
-        print(f"\n--- DEBUG: LLM Raw Output ---")
-        print(llm_output)
-        print(f"--- END DEBUG: LLM Raw Output ---")
+        sys.stdout.buffer.write(b"\n--- DEBUG: LLM Raw Output ---\n")
+        sys.stdout.buffer.write(llm_output.encode('utf-8', 'replace'))
+        sys.stdout.buffer.write(b"\n--- END DEBUG: LLM Raw Output ---\n")
+        sys.stdout.flush()
         
         return llm_output
 
@@ -127,9 +130,10 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
         # For the OpenAI client, this is generally handled by Python's garbage collection.
         # If specific cleanup is needed for LM Studio, it would depend on its API.
         error_message = f"FEHLER: {e}"
-        print(f"\n--- DEBUG: LLM API Error ---")
-        print(error_message)
-        print(f"--- END DEBUG: LLM API Error ---")
+        sys.stdout.buffer.write(b"\n--- DEBUG: LLM API Error ---\n")
+        sys.stdout.buffer.write(error_message.encode('utf-8', 'replace'))
+        sys.stdout.buffer.write(b"\n--- END DEBUG: LLM API Error ---\n")
+        sys.stdout.flush()
         return error_message
 
 # --- HAUPTPROGRAMM ---
