@@ -10,14 +10,34 @@ import re
 import hashlib # Importiere hashlib für Checksummen
 
 # --- KONFIGURATION ---
-# Das Verzeichnis, das die PDFs enthält (als erstes Kommandozeilenargument)
-if len(sys.argv) < 2:
-    print("Fehler: Bitte geben Sie das PDF-Verzeichnis als erstes Argument an.")
-    sys.exit(1)
+# Standard-PDF-Verzeichnis, falls kein Argument übergeben wird.
+# Sie können diesen Pfad nach Bedarf anpassen.
+DEFAULT_PDF_DIR = pathlib.Path("./pdfs_to_process") # Standardmäßig ein Unterordner namens 'pdfs_to_process'
 
-PDF_DIR = pathlib.Path(sys.argv[1])
-TARGET_URL = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:1234/v1" # Standardwert, falls nicht übergeben
-MODEL_NAME = sys.argv[3] if len(sys.argv) > 3 else "qwen/qwen3-vl-4b" # Standardmodellname
+# Standardwerte für URL und Modell, falls nicht übergeben
+DEFAULT_TARGET_URL = "http://127.0.0.1:1234/v1"
+DEFAULT_MODEL_NAME = "qwen/qwen3-vl-4b"
+
+# Holen Sie sich die Argumente, aber verwenden Sie Standardwerte, wenn sie nicht vorhanden sind.
+if len(sys.argv) < 2:
+    pdf_dir_arg = str(DEFAULT_PDF_DIR)
+    print(f"Kein PDF-Verzeichnis angegeben. Verwende Standardverzeichnis: '{pdf_dir_arg}'")
+else:
+    pdf_dir_arg = sys.argv[1]
+
+PDF_DIR = pathlib.Path(pdf_dir_arg)
+TARGET_URL = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_TARGET_URL
+MODEL_NAME = sys.argv[3] if len(sys.argv) > 3 else DEFAULT_MODEL_NAME
+
+# Stellen Sie sicher, dass das Standardverzeichnis existiert, falls es verwendet wird
+if PDF_DIR == DEFAULT_PDF_DIR and not PDF_DIR.exists():
+    try:
+        PDF_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"Standardverzeichnis '{PDF_DIR}' wurde erstellt. Bitte legen Sie Ihre PDFs dort ab.")
+    except OSError as e:
+        print(f"Fehler beim Erstellen des Standardverzeichnisses '{PDF_DIR}': {e}")
+        sys.exit(1)
+
 
 # Neuer, spezifischer Prompt für dieses Skript
 NEW_PROMPT_TEMPLATE = (
@@ -94,11 +114,19 @@ if not PDF_DIR.is_dir():
 
 print(f"Starte PDF-Verarbeitung (nur Namensgenerierung) in: {PDF_DIR}")
 print(f"Verwendetes Modell: '{MODEL_NAME}'")
+print(f"Target URL: '{TARGET_URL}'")
 print("-" * 80)
 
 processed_files_count = 0
 
-for pdf_path in PDF_DIR.glob("*.pdf"):
+# Durchsuche das Verzeichnis nach PDF-Dateien
+pdf_files = list(PDF_DIR.glob("*.pdf"))
+
+if not pdf_files:
+    print("Keine PDF-Dateien im angegebenen Verzeichnis gefunden.")
+    sys.exit(0)
+
+for pdf_path in pdf_files:
     original_filename = pdf_path.name
     pdf_stem = pdf_path.stem
     new_filename_output = "N/A"
