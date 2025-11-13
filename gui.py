@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QFileDialog,
     QTextEdit, QProgressBar, QGroupBox, QFormLayout,
-    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView # Import QTableWidget and related items
+    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QSplitter # Import QSplitter
 )
 from PyQt6.QtCore import Qt, QProcess
 
@@ -107,7 +107,24 @@ class PDFProcessorGUI(QWidget):
         self.progress_bar.setVisible(False) # Zuerst versteckt
         main_layout.addWidget(self.progress_bar)
 
-        # --- Output Anzeige (ersetzt durch QTableWidget) ---
+        # --- Splitter for separating info and results ---
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # --- General Info Section ---
+        self.info_group_box = QGroupBox("Verarbeitungsinformationen")
+        self.info_layout = QVBoxLayout()
+        self.model_info_label = QLabel("Modell: N/A")
+        self.target_url_info_label = QLabel("Target URL: N/A")
+        self.status_info_label = QLabel("Status: Idle")
+        self.info_layout.addWidget(self.model_info_label)
+        self.info_layout.addWidget(self.target_url_info_label)
+        self.info_layout.addWidget(self.status_info_label)
+        self.info_group_box.setLayout(self.info_layout)
+        self.splitter.addWidget(self.info_group_box)
+
+        # --- Processing Results Table ---
+        self.results_group_box = QGroupBox("Verarbeitungsergebnisse")
+        self.results_layout = QVBoxLayout()
         self.output_table = QTableWidget()
         self.output_table.setColumnCount(6) # Number of columns
         self.output_table.setHorizontalHeaderLabels([
@@ -123,10 +140,24 @@ class PDFProcessorGUI(QWidget):
         
         self.output_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Make cells non-editable
         self.output_table.setAlternatingRowColors(True) # Improve readability
-        self.output_table.setVisible(True) # Make it visible from the start
-        main_layout.addWidget(self.output_table)
+        self.results_layout.addWidget(self.output_table)
+        self.results_group_box.setLayout(self.results_layout)
+        self.splitter.addWidget(self.results_group_box)
+
+        main_layout.addWidget(self.splitter)
 
         self.setLayout(main_layout)
+
+    def update_info_labels(self):
+        """Updates the general information labels."""
+        self.model_info_label.setText(f"Modell: {self.model_name_combobox.currentText() if self.model_name_combobox.currentText() else 'N/A'}")
+        self.target_url_info_label.setText(f"Target URL: {self.target_url_input.text()}")
+        if self.process and self.process.state() == QProcess.ProcessState.Running:
+            self.status_info_label.setText("Status: Processing...")
+        elif self.process and self.process.state() == QProcess.ProcessState.NotRunning:
+            self.status_info_label.setText("Status: Processing Complete")
+        else:
+            self.status_info_label.setText("Status: Idle")
 
     def fetch_lm_studio_models(self):
         """Ruft die Liste der Modelle von LM Studio ab und füllt die ComboBox."""
@@ -204,6 +235,7 @@ class PDFProcessorGUI(QWidget):
                 self.model_name_combobox.addItem(current_model_name)
                 self.model_name_combobox.setCurrentText(current_model_name)
 
+        self.update_info_labels() # Update info labels after loading config
 
         # Überprüfe und aktiviere den Start-Button basierend auf dem geladenen Verzeichnis
         if os.path.isdir(self.pdf_dir_input.text()):
@@ -250,6 +282,8 @@ class PDFProcessorGUI(QWidget):
             self.fetch_lm_studio_models()
 
         self.add_log_message("<font color='blue'>Konfiguration geladen.</font>")
+        self.update_info_labels() # Update info labels after loading config
+
         # Überprüfe und aktiviere den Start-Button basierend auf dem geladenen Verzeichnis
         if os.path.isdir(self.pdf_dir_input.text()):
             self.start_button.setEnabled(True)
@@ -291,6 +325,8 @@ class PDFProcessorGUI(QWidget):
         self.add_log_message(f"<font color='blue'>Starte Verarbeitung für Verzeichnis: {pdf_dir}</font>")
         self.add_log_message(f"<font color='blue'>Target URL: {target_url}</font>")
         self.add_log_message(f"<font color='blue'>Modell: {model_name}</font>")
+
+        self.update_info_labels() # Update info labels to "Processing..."
 
         self.start_button.setEnabled(False)
         self.browse_pdf_dir_button.setEnabled(False)
@@ -351,7 +387,7 @@ class PDFProcessorGUI(QWidget):
         data = self.process.readAllStandardOutput().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
         lines = data.strip().split('\n')
         for line in lines:
-            # --- FIX: Skip lines that start with '---' to avoid re-adding headers ---
+            # Skip lines that start with '---' to avoid re-adding headers
             if line.startswith("---"): 
                 continue
             
@@ -385,8 +421,10 @@ class PDFProcessorGUI(QWidget):
     def handle_process_finished(self, exit_code, exit_status):
         if exit_status == QProcess.ExitStatus.NormalExit:
             self.add_log_message("<font color='green'>✅ Verarbeitung abgeschlossen.</font>")
+            self.status_info_label.setText("Status: Processing Complete")
         else:
             self.add_log_message(f"<font color='red'>❌ Verarbeitung mit Fehler beendet. Exit Code: {exit_code}</font>")
+            self.status_info_label.setText(f"Status: Error (Exit Code: {exit_code})")
         self.reset_ui()
 
     def reset_ui(self):
@@ -406,16 +444,10 @@ class PDFProcessorGUI(QWidget):
 
     def add_log_message(self, message):
         """Appends a message to the log output, preserving HTML formatting."""
-        # This method is now used to add messages to the table's log area (if we had one)
-        # For now, we'll just print to console or a separate log widget if implemented.
-        # Since we replaced QTextEdit with QTableWidget, we'll use this for general messages.
-        # If you want a separate log area, you'd need to add another widget.
-        # For now, let's assume these messages are for general feedback and print them.
-        # In a real GUI, you'd likely have a separate QTextEdit for logs.
-        # For this example, we'll just print to stdout, which might appear in the console.
-        print(message) # This will print to the console where the script is run.
-        # If you want to display these in the GUI, you'd need a dedicated log widget.
-        # For now, the table shows processed file details.
+        # This method is now used for general log messages that are not table rows.
+        # For now, we'll print them to stdout, which will appear in the console.
+        # In a more complex GUI, these might go to a dedicated log widget.
+        print(message) 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
