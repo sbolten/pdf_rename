@@ -240,10 +240,11 @@ class PDFProcessorGUI(QWidget):
 
     def load_initial_config(self):
         """Lädt die Konfiguration beim Start der Anwendung und wendet sie auf die GUI an."""
+        # Die Methode apply_config_to_gui erwartet jetzt nur noch die relevanten Widgets,
+        # die sie direkt setzen kann. Das model_name_combobox wird separat behandelt.
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            self.model_name_combobox,
             self.prompt_input,
             self.additional_prompt_input # Füge das neue Feld hinzu
         )
@@ -289,6 +290,8 @@ class PDFProcessorGUI(QWidget):
     def load_config_from_gui(self):
         """Lädt die Konfiguration aus der Datei und wendet sie auf die GUI an."""
         self.config_manager.load_config() # Lädt die Konfiguration neu
+        # Die Methode apply_config_to_gui erwartet jetzt nur noch die relevanten Widgets,
+        # die sie direkt setzen kann. Das model_name_combobox wird separat behandelt.
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
