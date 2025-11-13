@@ -138,6 +138,13 @@ class PDFProcessorGUI(QWidget):
         self.output_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Target Folder
         self.output_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch) # Error Message
         
+        # --- Set header alignment to left ---
+        for col in range(self.output_table.columnCount()):
+            header_item = self.output_table.horizontalHeaderItem(col)
+            if header_item:
+                header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        # --- End of header alignment adjustment ---
+
         self.output_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Make cells non-editable
         self.output_table.setAlternatingRowColors(True) # Improve readability
         self.results_layout.addWidget(self.output_table)
