@@ -49,6 +49,13 @@ class ConfigManager:
                 "20240320_Fitness_Abo_Rechnung|RECHNUNGEN\n"
                 "20240228_Krankenversicherung_Jahresabrechnung|VERSICHERUNG#STEUER\n"
                 "20240405_Bank_Amortisationsplan|FINANZEN_ALLGEMEIN#STEUER"
+            ),
+            # Neuer Prompt für zusätzliche Informationen
+            "additional_prompt_template": (
+                "Zusätzlich zu den oben genannten Regeln, beachte bitte folgende Punkte:\n"
+                "* **Dokumenteninhalt:** Extrahiere relevante Details wie Namen, Daten, Beträge und spezifische Posten.\n"
+                "* **Kontext:** Berücksichtige den ursprünglichen Dateinamen '{{original_filename}}' als zusätzlichen Hinweis auf den Inhalt.\n"
+                "* **Sprache:** Die Ausgabe sollte auf Deutsch erfolgen, es sei denn, der Inhalt des Dokuments legt etwas anderes nahe."
             )
         }
         self.config = self.load_config()
@@ -90,17 +97,21 @@ class ConfigManager:
         """Gibt die aktuell geladene Konfiguration zurück."""
         return self.config.copy()
 
-    def update_config_from_gui(self, pdf_dir_input, target_url_input, model_name_combobox, prompt_input):
+    def update_config_from_gui(self, pdf_dir_input, target_url_input, model_name_combobox, prompt_input, additional_prompt_input):
         """Aktualisiert die interne Konfiguration basierend auf den GUI-Widgets."""
         self.config["pdf_dir"] = pdf_dir_input.text()
         self.config["target_url"] = target_url_input.text()
         # Hole den ausgewählten Modellnamen aus der ComboBox
         self.config["model_name"] = model_name_combobox.currentText()
         self.config["prompt_template"] = prompt_input.toPlainText()
+        # Aktualisiere den zusätzlichen Prompt
+        self.config["additional_prompt_template"] = additional_prompt_input.toPlainText()
 
-    def apply_config_to_gui(self, pdf_dir_input, target_url_input, prompt_input):
+    def apply_config_to_gui(self, pdf_dir_input, target_url_input, prompt_input, additional_prompt_input):
         """Wendet die geladene Konfiguration auf die GUI-Widgets an."""
         pdf_dir_input.setText(self.config.get("pdf_dir", self.default_config["pdf_dir"]))
         target_url_input.setText(self.config.get("target_url", self.default_config["target_url"]))
         # model_name_input wird nicht mehr benötigt, da wir eine ComboBox verwenden
         prompt_input.setPlainText(self.config.get("prompt_template", self.default_config["prompt_template"]))
+        # Wende den zusätzlichen Prompt an
+        additional_prompt_input.setPlainText(self.config.get("additional_prompt_template", self.default_config["additional_prompt_template"]))

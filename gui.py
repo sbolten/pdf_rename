@@ -70,11 +70,19 @@ class PDFProcessorGUI(QWidget):
         
         config_layout.addRow(self.model_name_label, model_row_layout)
 
-        self.prompt_label = QLabel("Prompt Vorlage:")
+        self.prompt_label = QLabel("Prompt Vorlage 1:")
         self.prompt_input = QTextEdit()
-        self.prompt_input.setPlaceholderText("Vorlage für den Prompt an das LLM")
+        self.prompt_input.setPlaceholderText("Vorlage für den Haupt-Prompt an das LLM")
         self.prompt_input.setFixedHeight(100) # Feste Höhe für das Textfeld
         config_layout.addRow(self.prompt_label, self.prompt_input)
+
+        # --- NEUES FELD FÜR ZWEITEN PROMPT ---
+        self.additional_prompt_label = QLabel("Prompt Vorlage 2:")
+        self.additional_prompt_input = QTextEdit()
+        self.additional_prompt_input.setPlaceholderText("Vorlage für zusätzliche Anweisungen an das LLM")
+        self.additional_prompt_input.setFixedHeight(100) # Feste Höhe für das Textfeld
+        config_layout.addRow(self.additional_prompt_label, self.additional_prompt_input)
+        # --- ENDE NEUES FELD ---
 
         # --- Konfigurations-Buttons ---
         config_buttons_layout = QHBoxLayout()
@@ -235,7 +243,9 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            self.prompt_input
+            self.model_name_combobox,
+            self.prompt_input,
+            self.additional_prompt_input # Füge das neue Feld hinzu
         )
         # Lade Modelle, wenn die URL vorhanden ist
         if self.target_url_input.text():
@@ -267,7 +277,8 @@ class PDFProcessorGUI(QWidget):
             self.pdf_dir_input,
             self.target_url_input,
             self.model_name_combobox,
-            self.prompt_input
+            self.prompt_input,
+            self.additional_prompt_input # Füge das neue Feld hinzu
         )
 
         if self.config_manager.save_config(self.config_manager.get_current_config()):
@@ -281,7 +292,8 @@ class PDFProcessorGUI(QWidget):
         self.config_manager.apply_config_to_gui(
             self.pdf_dir_input,
             self.target_url_input,
-            self.prompt_input
+            self.prompt_input,
+            self.additional_prompt_input # Füge das neue Feld hinzu
         )
         
         # Setze den Modellnamen in der ComboBox basierend auf der geladenen Konfiguration
@@ -317,6 +329,7 @@ class PDFProcessorGUI(QWidget):
         self.pdf_dir_input.setText(default_config["pdf_dir"])
         self.target_url_input.setText(default_config["target_url"])
         self.prompt_input.setPlainText(default_config["prompt_template"])
+        self.additional_prompt_input.setPlainText(default_config["additional_prompt_template"]) # Setze auch das neue Feld
         
         # Setze den Modellnamen auf den Standardwert oder das erste verfügbare Modell
         default_model_name = default_config["model_name"]
@@ -357,6 +370,7 @@ class PDFProcessorGUI(QWidget):
         # Hole den ausgewählten Modellnamen aus der ComboBox
         model_name = self.model_name_combobox.currentText() 
         prompt_template = self.prompt_input.toPlainText()
+        additional_prompt_template = self.additional_prompt_input.toPlainText() # Hole den zweiten Prompt
 
         if not pdf_dir or not os.path.isdir(pdf_dir):
             self.add_log_message("<font color='red'>Fehler: Ungültiges PDF-Verzeichnis ausgewählt.</font>")
@@ -368,7 +382,11 @@ class PDFProcessorGUI(QWidget):
             self.add_log_message("<font color='red'>Fehler: Modellname darf nicht leer sein.</font>")
             return
         if not prompt_template:
-            self.add_log_message("<font color='red'>Fehler: Prompt-Vorlage darf nicht leer sein.</font>")
+            self.add_log_message("<font color='red'>Fehler: Prompt Vorlage 1 darf nicht leer sein.</font>")
+            return
+        # Überprüfe auch den zweiten Prompt, falls er benötigt wird
+        if not additional_prompt_template:
+            self.add_log_message("<font color='red'>Fehler: Prompt Vorlage 2 darf nicht leer sein.</font>")
             return
 
         self.output_table.clearContents() # Clear previous table content
@@ -385,6 +403,7 @@ class PDFProcessorGUI(QWidget):
         self.model_name_combobox.setEnabled(False) # Deaktiviere ComboBox
         self.fetch_models_button.setEnabled(False) # Deaktiviere Button
         self.prompt_input.setEnabled(False)
+        self.additional_prompt_input.setEnabled(False) # Deaktiviere das neue Feld
         self.save_config_button.setEnabled(False) # Deaktiviere Buttons während der Verarbeitung
         self.load_config_button.setEnabled(False)
         self.reset_config_button.setEnabled(False) # Deaktiviere auch den Reset-Button
@@ -423,6 +442,9 @@ class PDFProcessorGUI(QWidget):
         # Setze PYTHONUNBUFFERED=1, um die Ausgabe sofort zu erhalten
         os.environ["PYTHONUNBUFFERED"] = "1"
 
+        # Kombiniere die beiden Prompts
+        combined_prompt = f"{prompt_template}\n\n{additional_prompt_template}"
+
         # Passe das Skript an, um die Konfigurationsparameter zu übergeben
         # Wir übergeben sie als Kommandozeilenargumente
         command = [
@@ -431,7 +453,7 @@ class PDFProcessorGUI(QWidget):
             pdf_dir,
             target_url,
             model_name,
-            prompt_template # Prompt wird als einzelnes Argument übergeben
+            combined_prompt # Kombinierter Prompt wird als einzelnes Argument übergeben
         ]
         self.process.start(command[0], command[1:])
 
@@ -491,6 +513,7 @@ class PDFProcessorGUI(QWidget):
         self.model_name_combobox.setEnabled(True) # Aktiviere ComboBox wieder
         self.fetch_models_button.setEnabled(True) # Aktiviere Button wieder
         self.prompt_input.setEnabled(True)
+        self.additional_prompt_input.setEnabled(True) # Aktiviere das neue Feld wieder
         self.save_config_button.setEnabled(True) # Aktiviere Buttons wieder
         self.load_config_button.setEnabled(True)
         self.reset_config_button.setEnabled(True) # Aktiviere Reset-Button wieder
