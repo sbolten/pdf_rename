@@ -138,11 +138,14 @@ class PDFProcessorGUI(QWidget):
             
             self.model_name_combobox.clear() # Leere die aktuelle Liste
             
-            if not models_data or 'models' not in models_data:
-                self.output_text.append("<font color='orange'>Keine Modelle gefunden oder unerwartetes Format von LM Studio.</font>")
+            # --- ANPASSUNG HIER ---
+            # LM Studio gibt die Modelle unter dem Schlüssel 'data' zurück, und jedes Modell hat ein 'id' Feld.
+            if not models_data or 'data' not in models_data:
+                self.output_text.append("<font color='orange'>Keine Modelle gefunden oder unerwartetes Format von LM Studio (erwartet 'data' Schlüssel).</font>")
                 return
 
-            available_models = [model['name'] for model in models_data['models']]
+            available_models = [model['id'] for model in models_data['data']]
+            # --- ENDE ANPASSUNG ---
             
             if not available_models:
                 self.output_text.append("<font color='orange'>Keine Modelle in der Antwort von LM Studio gefunden.</font>")
