@@ -75,12 +75,10 @@ def generate_checksum(file_path: pathlib.Path) -> str:
             hasher.update(chunk)
     return hasher.hexdigest()[:10] # Nimm die ersten 10 Zeichen für eine kürzere Checksumme
 
-def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
+def analyze_image_with_lm_studio(base64_image: str, prompt: str, original_filename: str) -> str:
     """Sendet die Base64-kodierte Bilddaten und den Prompt an das lokale LLM."""
-    # Use sys.stdout.buffer.write and encode to handle potential Unicode issues
-    sys.stdout.buffer.write(b"\n--- DEBUG: LLM Input Prompt ---\n")
-    sys.stdout.buffer.write(prompt.encode('utf-8', 'replace'))
-    sys.stdout.buffer.write(b"\n--- END DEBUG: LLM Input Prompt ---\n")
+    # Print only the filename and the LLM output for debugging
+    sys.stdout.buffer.write(f"\n--- DEBUG: Processing file for LLM: {original_filename} ---\n".encode('utf-8', 'replace'))
     sys.stdout.flush()
 
     try:
@@ -102,23 +100,9 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
             temperature=0.1, 
         )
         
-        # Explicitly clear context or resources if the client object allows for it.
-        # For the OpenAI Python client, there isn't a direct method to "eject" or "clear context"
-        # for a single API call like this. The client is designed to be stateless per call.
-        # However, if the underlying LM Studio server maintains context, we might need to
-        # ensure the request itself doesn't carry over previous conversation state.
-        # The current structure of sending a single user message with the image should
-        # inherently prevent cross-conversation context from being maintained by the client.
-        # If LM Studio server-side context is the issue, it might require specific server configurations
-        # or a different API endpoint if available.
-        
-        # For now, we rely on the stateless nature of the client call.
-        # If issues persist, further investigation into LM Studio's server-side context management
-        # would be needed.
-
         llm_output = response.choices[0].message.content.strip()
         
-        sys.stdout.buffer.write(b"\n--- DEBUG: LLM Raw Output ---\n")
+        sys.stdout.buffer.write(f"\n--- DEBUG: LLM Raw Output for {original_filename} ---\n".encode('utf-8', 'replace'))
         sys.stdout.buffer.write(llm_output.encode('utf-8', 'replace'))
         sys.stdout.buffer.write(b"\n--- END DEBUG: LLM Raw Output ---\n")
         sys.stdout.flush()
@@ -126,11 +110,8 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
         return llm_output
 
     except Exception as e:
-        # In case of an error, ensure any potential resources are cleaned up.
-        # For the OpenAI client, this is generally handled by Python's garbage collection.
-        # If specific cleanup is needed for LM Studio, it would depend on its API.
         error_message = f"FEHLER: {e}"
-        sys.stdout.buffer.write(b"\n--- DEBUG: LLM API Error ---\n")
+        sys.stdout.buffer.write(f"\n--- DEBUG: LLM API Error for {original_filename} ---\n".encode('utf-8', 'replace'))
         sys.stdout.buffer.write(error_message.encode('utf-8', 'replace'))
         sys.stdout.buffer.write(b"\n--- END DEBUG: LLM API Error ---\n")
         sys.stdout.flush()
@@ -177,7 +158,7 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     doc = None # Initialize doc to None for each file
     # --- ENDE VARIABLEN-RESET ---
 
-    print(f"\n--- Processing file: {original_filename} ---")
+    # Removed the general "Processing file:" print here to avoid redundancy with debug output
 
     try:
         checksum = generate_checksum(pdf_path)
@@ -222,7 +203,8 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     dynamic_prompt = PROMPT_TEMPLATE.format(original_filename=pdf_stem)
 
     # 2. Modellabfrage und Parsing
-    model_output = analyze_image_with_lm_studio(base64_img, dynamic_prompt)
+    # Pass original_filename to the analyze function for debug output
+    model_output = analyze_image_with_lm_studio(base64_img, dynamic_prompt, original_filename)
     
     # --- RESET VARIABLEN VOR MODELL-OUTPUT-VERARBEITUNG ---
     name_part = ""
