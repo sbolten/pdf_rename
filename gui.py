@@ -82,9 +82,13 @@ class PDFProcessorGUI(QWidget):
         self.save_config_button.clicked.connect(self.save_current_config)
         self.load_config_button = QPushButton("Konfiguration laden")
         self.load_config_button.clicked.connect(self.load_config_from_gui)
+        # --- NEUER RESET BUTTON ---
+        self.reset_config_button = QPushButton("Auf Standard zurücksetzen")
+        self.reset_config_button.clicked.connect(self.reset_config_to_default)
         
         config_buttons_layout.addWidget(self.save_config_button)
         config_buttons_layout.addWidget(self.load_config_button)
+        config_buttons_layout.addWidget(self.reset_config_button) # Füge den Reset-Button hinzu
         
         # Füge die Buttons unterhalb der Formularfelder hinzu
         config_layout.addRow(QLabel(""), config_buttons_layout) # Leeres Label für Ausrichtung
@@ -253,11 +257,12 @@ class PDFProcessorGUI(QWidget):
     def save_current_config(self):
         """Speichert die aktuellen GUI-Einstellungen in die Konfigurationsdatei."""
         # Aktualisiere die Konfiguration mit den Werten aus den GUI-Elementen
-        self.config_manager.config["pdf_dir"] = self.pdf_dir_input.text()
-        self.config_manager.config["target_url"] = self.target_url_input.text()
-        # Hole den ausgewählten Modellnamen aus der ComboBox
-        self.config_manager.config["model_name"] = self.model_name_combobox.currentText()
-        self.config_manager.config["prompt_template"] = self.prompt_input.toPlainText()
+        self.config_manager.update_config_from_gui(
+            self.pdf_dir_input,
+            self.target_url_input,
+            self.model_name_combobox,
+            self.prompt_input
+        )
 
         if self.config_manager.save_config(self.config_manager.get_current_config()):
             self.add_log_message("<font color='green'>Konfiguration erfolgreich gespeichert.</font>")
@@ -296,6 +301,39 @@ class PDFProcessorGUI(QWidget):
             self.start_button.setEnabled(True)
         else:
             self.start_button.setEnabled(False)
+
+    # --- NEUE METHODE ZUM ZURÜCKSETZEN DER KONFIGURATION ---
+    def reset_config_to_default(self):
+        """Setzt alle Konfigurationsfelder auf ihre Standardwerte zurück."""
+        default_config = self.config_manager.get_default_config()
+        
+        # Setze die GUI-Elemente auf die Standardwerte
+        self.pdf_dir_input.setText(default_config["pdf_dir"])
+        self.target_url_input.setText(default_config["target_url"])
+        self.prompt_input.setPlainText(default_config["prompt_template"])
+        
+        # Setze den Modellnamen auf den Standardwert oder das erste verfügbare Modell
+        default_model_name = default_config["model_name"]
+        model_index = self.model_name_combobox.findText(default_model_name)
+        if model_index != -1:
+            self.model_name_combobox.setCurrentIndex(model_index)
+        else:
+            # Wenn der Standardmodellname nicht in der ComboBox ist, füge ihn hinzu
+            self.model_name_combobox.addItem(default_model_name)
+            self.model_name_combobox.setCurrentText(default_model_name)
+            
+        # Aktualisiere die interne Konfiguration des ConfigManagers
+        self.config_manager.config = default_config.copy()
+        
+        self.add_log_message("<font color='blue'>Konfiguration auf Standardwerte zurückgesetzt.</font>")
+        self.update_info_labels() # Aktualisiere Info-Labels
+
+        # Überprüfe und aktiviere den Start-Button basierend auf dem zurückgesetzten Verzeichnis
+        if os.path.isdir(self.pdf_dir_input.text()):
+            self.start_button.setEnabled(True)
+        else:
+            self.start_button.setEnabled(False)
+
 
     def browse_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Wählen Sie das PDF-Verzeichnis")
@@ -343,6 +381,7 @@ class PDFProcessorGUI(QWidget):
         self.prompt_input.setEnabled(False)
         self.save_config_button.setEnabled(False) # Deaktiviere Buttons während der Verarbeitung
         self.load_config_button.setEnabled(False)
+        self.reset_config_button.setEnabled(False) # Deaktiviere auch den Reset-Button
 
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -448,6 +487,7 @@ class PDFProcessorGUI(QWidget):
         self.prompt_input.setEnabled(True)
         self.save_config_button.setEnabled(True) # Aktiviere Buttons wieder
         self.load_config_button.setEnabled(True)
+        self.reset_config_button.setEnabled(True) # Aktiviere Reset-Button wieder
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
         self.total_pdfs = 0
@@ -457,8 +497,8 @@ class PDFProcessorGUI(QWidget):
     def add_log_message(self, message):
         """Appends a message to the log output, preserving HTML formatting."""
         # This method is now used for general log messages that are not table rows.
-        # For now, we'll print them to stdout, which will appear in the console.
         # In a more complex GUI, these might go to a dedicated log widget.
+        # For now, we'll print them to stdout, which will appear in the console.
         print(message) 
 
 if __name__ == '__main__':
