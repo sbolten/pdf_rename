@@ -77,6 +77,10 @@ def generate_checksum(file_path: pathlib.Path) -> str:
 
 def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
     """Sendet die Base64-kodierte Bilddaten und den Prompt an das lokale LLM."""
+    print(f"\n--- DEBUG: LLM Input Prompt ---")
+    print(prompt)
+    print(f"--- END DEBUG: LLM Input Prompt ---")
+
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -110,13 +114,23 @@ def analyze_image_with_lm_studio(base64_image: str, prompt: str) -> str:
         # If issues persist, further investigation into LM Studio's server-side context management
         # would be needed.
 
-        return response.choices[0].message.content.strip()
+        llm_output = response.choices[0].message.content.strip()
+        
+        print(f"\n--- DEBUG: LLM Raw Output ---")
+        print(llm_output)
+        print(f"--- END DEBUG: LLM Raw Output ---")
+        
+        return llm_output
 
     except Exception as e:
         # In case of an error, ensure any potential resources are cleaned up.
         # For the OpenAI client, this is generally handled by Python's garbage collection.
         # If specific cleanup is needed for LM Studio, it would depend on its API.
-        return f"FEHLER: {e}"
+        error_message = f"FEHLER: {e}"
+        print(f"\n--- DEBUG: LLM API Error ---")
+        print(error_message)
+        print(f"--- END DEBUG: LLM API Error ---")
+        return error_message
 
 # --- HAUPTPROGRAMM ---
 if not PDF_DIR.is_dir():
@@ -158,6 +172,8 @@ for pdf_path in PDF_DIR.glob("*.pdf"):
     target_folder_display = "" # Variable für die Anzeige des Zielordners
     doc = None # Initialize doc to None for each file
     # --- ENDE VARIABLEN-RESET ---
+
+    print(f"\n--- Processing file: {original_filename} ---")
 
     try:
         checksum = generate_checksum(pdf_path)
