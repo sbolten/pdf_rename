@@ -71,4 +71,3 @@ class ConfigManager:
         target_url_input.setText(self.config.get("target_url", self.default_config["target_url"]))
         model_name_input.setText(self.config.get("model_name", self.default_config["model_name"]))
         prompt_input.setPlainText(self.config.get("prompt_template", self.default_config["prompt_template"]))
-
