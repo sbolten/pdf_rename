@@ -104,15 +104,23 @@ class PDFProcessorGUI(QWidget):
         config_group_box.setLayout(config_layout)
         main_layout.addWidget(config_group_box)
 
-        # --- Start Button ---
+        # --- Start und Cancel Buttons ---
+        action_buttons_layout = QHBoxLayout()
         self.start_button = QPushButton("Verarbeitung starten")
         self.start_button.clicked.connect(self.start_processing)
+        self.cancel_button = QPushButton("Verarbeitung abbrechen") # Neuer Cancel-Button
+        self.cancel_button.clicked.connect(self.cancel_processing)
+        self.cancel_button.setEnabled(False) # Zuerst deaktiviert
+
+        action_buttons_layout.addWidget(self.start_button)
+        action_buttons_layout.addWidget(self.cancel_button) # Füge den Cancel-Button hinzu
+        main_layout.addLayout(action_buttons_layout)
+
         # Aktiviert den Start-Button, wenn ein Verzeichnis (auch das Standard) vorhanden ist
         if os.path.isdir(self.pdf_dir_input.text()):
             self.start_button.setEnabled(True)
         else:
             self.start_button.setEnabled(False)
-        main_layout.addWidget(self.start_button)
 
         # --- Fortschrittsanzeige ---
         self.progress_bar = QProgressBar()
@@ -384,9 +392,6 @@ class PDFProcessorGUI(QWidget):
         if not model_name:
             self.add_log_message("<font color='red'>Fehler: Modellname darf nicht leer sein.</font>")
             return
-        if not prompt_template:
-            self.add_log_message("<font color='red'>Fehler: Prompt Vorlage 1 darf nicht leer sein.</font>")
-            return
         # Überprüfe auch den zweiten Prompt, falls er benötigt wird
         if not additional_prompt_template:
             self.add_log_message("<font color='red'>Fehler: Prompt Vorlage 2 darf nicht leer sein.</font>")
@@ -401,6 +406,7 @@ class PDFProcessorGUI(QWidget):
         self.update_info_labels() # Update info labels to "Processing..."
 
         self.start_button.setEnabled(False)
+        self.cancel_button.setEnabled(True) # Aktiviere den Cancel-Button
         self.browse_pdf_dir_button.setEnabled(False)
         self.target_url_input.setEnabled(False)
         self.model_name_combobox.setEnabled(False) # Deaktiviere ComboBox
@@ -460,6 +466,14 @@ class PDFProcessorGUI(QWidget):
         ]
         self.process.start(command[0], command[1:])
 
+    def cancel_processing(self):
+        """Versucht, den laufenden Prozess abzubrechen."""
+        if self.process and self.process.state() == QProcess.ProcessState.Running:
+            self.add_log_message("<font color='orange'>Abbruch angefordert. Warte auf Beendigung des Prozesses...</font>")
+            self.process.terminate() # Versucht, den Prozess sauber zu beenden
+            # Alternativ: self.process.kill() um den Prozess sofort zu beenden (weniger sauber)
+            self.cancel_button.setEnabled(False) # Deaktiviere den Cancel-Button, während der Abbruch verarbeitet wird
+
     def handle_stdout(self):
         data = self.process.readAllStandardOutput().data().decode('utf-8', errors='replace') # Fehlerbehandlung hinzugefügt
         lines = data.strip().split('\n')
@@ -504,6 +518,9 @@ class PDFProcessorGUI(QWidget):
         if exit_status == QProcess.ExitStatus.NormalExit:
             self.add_log_message("<font color='green'>✅ Verarbeitung abgeschlossen.</font>")
             self.status_info_label.setText("Status: Processing Complete")
+        elif exit_code == 1 and "Abbruch angefordert" in self.status_info_label.text(): # Check if it was a requested termination
+             self.add_log_message("<font color='orange'>Abbruch erfolgreich.</font>")
+             self.status_info_label.setText("Status: Cancelled")
         else:
             self.add_log_message(f"<font color='red'>❌ Verarbeitung mit Fehler beendet. Exit Code: {exit_code}</font>")
             self.status_info_label.setText(f"Status: Error (Exit Code: {exit_code})")
@@ -511,6 +528,7 @@ class PDFProcessorGUI(QWidget):
 
     def reset_ui(self):
         self.start_button.setEnabled(True)
+        self.cancel_button.setEnabled(False) # Deaktiviere Cancel-Button nach Abschluss/Abbruch
         self.browse_pdf_dir_button.setEnabled(True)
         self.target_url_input.setEnabled(True)
         self.model_name_combobox.setEnabled(True) # Aktiviere ComboBox wieder
