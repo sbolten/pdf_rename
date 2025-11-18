@@ -2,22 +2,43 @@
     "pdf_dir": "C:/Users/steph/Documents/dev/python_ai/pdf",
     "target_url": "http://127.0.0.1:1234/v1",
     "model_name": "qwen/qwen3-vl-4b",
-    "prompt_template": "# 🤖 DOKUMENTEN-KLASSIFIZIERER: AUSGABEREGELN\n\n## ⚠️ ZWINGENDE AUSGABEANWEISUNG\n\n**DEINE EINZIGE UND AUSSCHLIESSLICHE AUFGABE IST ES, ZWEI INFORMATIONEN DURCH EIN PIPE-ZEICHEN ('|') GETRENNT AUSZUGEBEN.**\n\nDAS ZWINGENDE OUTPUT-FORMAT LAUTET:\n`DATEINAME|KATEGORIE1#KATEGORIE2#...`\n\nDU DARFST AUSSCHLIESSLICH DIESE BEIDEN INFORMATIONEN AUSGEBEN, OHNE JEDEN WEITEREN TEXT ODER KOMMENTAR. KEINE ERKLÄRUNGEN, KEINE BEGRÜSSUNGEN, NUR OUTPUT!\n\n---\n\n## 📝 REGELN\n\n### 1. DATEINAME FORMAT\nDas Format lautet: `YYYYMMDD_<inhalt>`\n* **INHALT:** Muss alle relevanten, kurzgefassten Stichworte (Namen, Betreff, Firma, Projekt, Art des Dokuments) enthalten. **Keine Füllwörter oder Redundanzen.**\n\n### 2. KATEGORIEN\n* Du darfst **EIN ODER MEHRERE** logische Kategorien wählen.\n* Mehrere Kategorien werden mit dem Zeichen **'#'** getrennt (z. B. `STEUER#VERSICHERUNG`).\n* Die Wahl jeder Kategorie muss **ZWINGEND** aus der Liste unten erfolgen.\n* Wenn keine Kategorie zutrifft, wähle **'OTHER'** als einzige Kategorie.\n\n---\n\n## 📋 VERFÜGBARE KATEGORIEN UND KRITERIEN\n\n### 1. **STEUER**\nWähle STEUER, wenn das Dokument für die private Steuererklärung relevant ist (abzugsfähige Kosten oder deklarationspflichtiges Einkommen/Vermögen). (Basis: Kanton Zürich/ZH, Stockwerkeigentum).\n\n* **EXPLIZITE FORMULIERUNG:** Dokumente, die explizit die Phrase enthalten: „Diese Bescheinigung bitte für das Ausfüllen Ihrer Steuererklärung aufbewahren“ oder „ZUSAMMENSTELLUNG FÜR IHRE STEUERERKLÄRUNG“.\n* **Vermögen/Schulden:** Jahresend-Bescheinigungen (Kontosalden, Hypothekarsalden, Zinserträge, Schuldzinsen). *Stichworte: „Kontosaldo“, „Zinsen“, „Vermögensausweis“.*\n* **Einkommen & Vorsorge:** Lohnausweise, Beiträge zur gebundenen Vorsorge (Säule 3a), Rückkaufswerte (Säule 3b).\n* **Liegenschaftsunterhalt (Werterhalt):** Rechnungen für laufenden Unterhalt, Reparaturen (inkl. STWEG-Abrechnungen).\n* **Persönliche Abzüge:** Spenden, Beiträge an Berufsverbände, detaillierte Krankenversicherungs-Abrechnungen (Prämien, Franchise, Selbstbehalt).\n\n### 2. **RECHNUNGEN**\n* **KRITERIEN:** Zahlungsaufforderung oder Beleg für Konsum, der **keinen Steuervorteil** bietet. Allgemeine Konsumrechnungen, private Abonnements. **Wertvermehrende** Investitionen/Modernisierungen der Liegenschaft.\n\n### 3. **FINANZEN_ALLGEMEIN**\n* **KRITERIEN:** Finanzieller Bezug, aber **keine Steuerrelevanz** und **keine Konsumrechnung**. Amortisationspläne, nicht steuerrelevante Kontostände (z. B. Zwischenauszüge).\n\n### 4. **VERSICHERUNG**\n* **KRITERIEN:** Verträge, Policen oder allgemeine Korrespondenz zu Versicherungen, die **nicht** direkt eine steuerlich abzugsfähige Prämie betreffen. (Hausrat, Haftpflicht, Gebäude, Vertragsänderungen).\n\n### 5. **OTHER**\n* **KRITERIEN:** Dokumente ohne monetären Wert, steuerliche Relevanz oder klaren Bezug zu den anderen Kategorien (Fallengruppe). Einladungen, allgemeine Mails, leere oder irrelevante Dokumente.\n\n---\n\n## 💡 BEISPIELE (Zwingendes Output-Format)\n20240115_Bank_Vermögensausweis_Jahresende|STEUER\n20240320_Fitness_Abo_Rechnung|RECHNUNGEN\n20240228_Krankenversicherung_Jahresabrechnung|VERSICHERUNG#STEUER\n20240405_Bank_Amortisationsplan|FINANZEN_ALLGEMEIN#STEUER",
-    "topics": [
+    "categories": [
         {
-            "enabled": false,
-            "name": "Steuer",
-            "prompt_part": "* **STEUER_FINANZEN:** Kontosalden, Hypotheken, Zinsen, Säule 3a/2, Vermögensausweise.\n        * **STEUER_EINKOMMEN:** Lohnausweise, Taggelder, Erwerbsersatz.\n        * **STEUER_LIEGENSCHAFT:** Werterhaltende Unterhaltsrechnungen, STWEG-Abrechnungen, Verwaltungskosten, Versicherungen zur Liegenschaft."
+            "name": "STEUER",
+            "directory": "STEUER",
+            "prompt": "Any document relevant for a private tax declaration in Switzerland (Canton of Zurich). This includes official tax forms, income statements, asset statements (year-end bank accounts), mortgage debt, 3a pension contributions, invoices for property maintenance (werterhaltend), professional expenses, donations, or detailed health cost statements. **Examples:** `Lohnausweis`, `Vermögensausweis`, `Hypothekarzinsabrechnung`, `Spendenbescheinigung`, `Handwerkerrechnung für Reparatur`. **➡️ If it's tax-relevant, always choose this category, even if it's also an invoice or insurance document.**",
+            "active": true
         },
         {
-            "enabled": false,
-            "name": "Topic 2",
-            "prompt_part": "Topic 2 specific details"
+            "name": "RECHNUNGEN",
+            "directory": "RECHNUNGEN",
+            "prompt": "Any invoice or bill that is **NOT** tax-deductible. This includes general consumption, services, or value-adding investments (wertvermehrend). **Examples:** `Handy-Rechnung`, `Bestellung bei Online-Shop`, `Rechnung für eine neue Küche`.",
+            "active": true
         },
         {
-            "enabled": false,
-            "name": "Topic 3",
-            "prompt_part": "Topic 3 specific details"
+            "name": "VERSICHERUNG",
+            "directory": "VERSICHERUNG",
+            "prompt": "Insurance policies, contracts, or general communication that is **NOT** a tax-relevant annual statement. **Examples:** `Versicherungspolice Hausrat`, `Vertragsänderung Autoversicherung`.",
+            "active": false
+        },
+        {
+            "name": "FINANZEN_ALLGEMEIN",
+            "directory": "FINANZEN_ALLGEMEIN",
+            "prompt": "Financial documents that are neither tax-relevant nor simple invoices. **Examples:** `Konto-Zwischenauszug`, `Amortisationsplan`, `Bank-Mitteilung`.",
+            "active": false
+        },
+        {
+            "name": "OTHER",
+            "directory": "OTHER",
+            "prompt": "Use this for any document that does not fit the other categories. **Examples:** `Werbung`, `Einladung`, `Allgemeine Korrespondenz`.",
+            "active": true
         }
+    ],
+    "base_prompt_template": "# 🤖 AI PDF ORGANIZER - STRICT OUTPUT FORMAT\n\n## ⚠️ YOUR TASK\nYour only task is to output a single line of text with two parts separated by a pipe character (`|`). Do not add any explanation or extra text.\n\n**FORMAT:** `YYYYMMDD_description|CATEGORY_NAME`\n\n---\n\n## 📜 RULES\n\n### 1. FILENAME (`YYYYMMDD_description`)\n- **Date:** Start with the document's date. If no date is found, use `19700101`.\n- **Description:** A short, clean description using keywords from the document (e.g., company, subject, person). Use underscores `_` instead of spaces.\n\n### 2. CATEGORY\nYou **MUST** choose exactly **ONE** category name from the list below. Use the specified hierarchy to decide if multiple categories seem to apply (highest in the list wins).\n\n---\n\n## 📋 CATEGORIES (Choose ONE)\n\n{{category_definitions}}\n\n---\n\n## ✅ EXAMPLES OF VALID OUTPUT\n\n`20240115_ubs_vermoegensausweis_jahresende|STEUER`\n`20240320_digitec_rechnung_maus|RECHNUNGEN`\n`20250101_einladung_generalversammlung|OTHER`\n\n---\nOriginal Filename Hint: `{{original_filename}}`",
+    "window_geometry": [
+        319,
+        89,
+        1583,
+        1188
     ]
 }

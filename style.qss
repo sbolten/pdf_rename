@@ -1,0 +1,157 @@
+/* style.qss */
+
+/* General Application Styling */
+QWidget {
+    background-color: #f0f0f0; /* Lighter background */
+    color: #000000; /* Darker text color */
+    font-family: "Segoe UI", "Helvetica Neue", "Arial", sans-serif;
+    font-size: 14px;
+}
+
+/* QMainWindow */
+QMainWindow {
+    background-color: #f0f0f0;
+    border-radius: 8px; /* Rounded corners for the main window */
+}
+
+/* QGroupBox */
+QGroupBox {
+    background-color: #ffffff; /* White background for group boxes */
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-top: 1ex; /* Space for title */
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left; /* Position at top left */
+    padding: 0 10px;
+    color: #000000;
+    background-color: transparent;
+}
+
+/* QPushButton */
+QPushButton {
+    background-color: #0078d7; /* Accent color for buttons */
+    color: #ffffff;
+    border: none;
+    border-radius: 8px; /* More rounded corners */
+    padding: 10px 20px; /* More padding */
+    min-width: 80px;
+}
+
+QPushButton:hover {
+    background-color: #005a9e; /* Slightly darker on hover */
+}
+
+QPushButton:pressed {
+    background-color: #003c75; /* Even darker when pressed */
+}
+
+QPushButton:disabled {
+    background-color: #e0e0e0;
+    color: #a0a0a0;
+}
+
+/* Special button styles */
+#toggle_categories_button {
+    background-color: #e0e0e0;
+    color: #000000;
+}
+
+#toggle_categories_button:hover {
+    background-color: #d0d0d0;
+}
+
+/* QLineEdit, QTextEdit, QComboBox */
+QLineEdit, QTextEdit, QComboBox {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 8px;
+    color: #000000;
+}
+
+QLineEdit:focus, QTextEdit:focus {
+    border: 1px solid #0078d7; /* Accent color on focus */
+}
+
+QComboBox::drop-down {
+    border: 0px; /* Remove dropdown border */
+}
+
+QComboBox::down-arrow {
+    image: url(down_arrow_dark.png); /* Placeholder for a dark down arrow icon */
+    width: 12px;
+    height: 12px;
+}
+
+/* QCheckBox */
+QCheckBox {
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0078d7; /* Accent color when checked */
+    border: 1px solid #0078d7;
+    image: url(check_mark_light.png); /* Placeholder for a light check mark icon */
+}
+
+/* QProgressBar */
+QProgressBar {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    text-align: center;
+    background-color: #ffffff;
+    color: #000000;
+}
+
+QProgressBar::chunk {
+    background-color: #0078d7; /* Accent color for progress */
+    border-radius: 8px;
+}
+
+/* QTableWidget */
+QTableWidget {
+    background-color: #ffffff;
+    alternate-background-color: #f7f7f7; /* Slightly different background for alternating rows */
+    border: 1px solid #e0e0e0;
+    gridline-color: #e0e0e0;
+    color: #000000;
+    selection-background-color: #0078d7; /* Accent color for selection */
+    selection-color: #ffffff;
+}
+
+QTableWidget::item {
+    padding: 8px;
+}
+
+QHeaderView::section {
+    background-color: #f0f0f0; /* Lighter header */
+    color: #000000;
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    border-bottom: 1px solid #0078d7; /* Accent line below header */
+}
+
+/* QScrollArea */
+QScrollArea {
+    border: none;
+}
+
+/* QSplitter handle */
+QSplitter::handle {
+    background-color: #e0e0e0;
+}
+
+QSplitter::handle:hover {
+    background-color: #0078d7;
+}
