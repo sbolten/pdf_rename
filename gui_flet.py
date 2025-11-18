@@ -19,8 +19,8 @@ class CategoryControl(Control):
         self.active_checkbox = ft.Checkbox(label="Aktiv", value=active)
         self.remove_button = ft.IconButton(icon=ft.Icons.DELETE, on_click=self.remove_clicked, tooltip="Kategorie entfernen")
         self.name_input = ft.TextField(label="Name", value=name, hint_text="Name der Kategorie (z.B. STEUER)")
-        self.directory_input = ft.TextField(label="Verzeichnis", value=directory, placeholder_text="Zielverzeichnis (z.B. Steuerunterlagen)")
-        self.prompt_input = ft.TextField(label="Prompt", value=prompt, multiline=True, min_lines=3, placeholder_text="Prompt-Kriterien für diese Kategorie...")
+        self.directory_input = ft.TextField(label="Verzeichnis", value=directory, hint_text="Zielverzeichnis (z.B. Steuerunterlagen)")
+        self.prompt_input = ft.TextField(label="Prompt", value=prompt, multiline=True, min_lines=3, hint_text="Prompt-Kriterien für diese Kategorie...")
 
         # Make the 'OTHER' category non-removable and always active
         if name.upper() == 'OTHER':
