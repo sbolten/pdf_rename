@@ -19,8 +19,8 @@ class CategoryControl(Control):
         self.active_checkbox = ft.Checkbox(label="Aktiv", value=active)
         self.remove_button = ft.IconButton(icon=ft.Icons.DELETE, on_click=self.remove_clicked, tooltip="Kategorie entfernen")
         self.name_input = ft.TextField(label="Name", value=name, hint_text="Name der Kategorie (z.B. STEUER)")
-        self.directory_input = ft.TextField(label="Verzeichnis", value=directory, placeholder_text="Zielverzeichnis (z.B. Steuerunterlagen)")
-        self.prompt_input = ft.TextField(label="Prompt", value=prompt, multiline=True, min_lines=3, placeholder_text="Prompt-Kriterien für diese Kategorie...")
+        self.directory_input = ft.TextField(label="Verzeichnis", value=directory, hint_text="Zielverzeichnis (z.B. Steuerunterlagen)")
+        self.prompt_input = ft.TextField(label="Prompt", value=prompt, multiline=True, min_lines=3, hint_text="Prompt-Kriterien für diese Kategorie...")
 
         # Make the 'OTHER' category non-removable and always active
         if name.upper() == 'OTHER':
@@ -36,7 +36,7 @@ class CategoryControl(Control):
     def build(self):
         return ft.Container(
             padding=15,
-            border=ft.border.all(1, ft.colors.OUTLINE),
+            border=ft.border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             content=ft.Column(
                 controls=[
@@ -98,7 +98,7 @@ def main(page: ft.Page):
     def fetch_lm_studio_models(e):
         lm_studio_url = target_url_input.value.strip()
         if not lm_studio_url:
-            show_snackbar("Bitte geben Sie zuerst die LM Studio Target URL an.", ft.colors.RED)
+            show_snackbar("Bitte geben Sie zuerst die LM Studio Target URL an.", ft.Colors.RED)
             return
 
         if not lm_studio_url.endswith('/v1'):
@@ -106,7 +106,7 @@ def main(page: ft.Page):
             target_url_input.value = lm_studio_url
         
         models_url = f"{lm_studio_url}/models"
-        show_snackbar(f"Versuche, Modelle von {models_url} abzurufen...", ft.colors.BLUE)
+        show_snackbar(f"Versuche, Modelle von {models_url} abzurufen...", ft.Colors.BLUE)
 
         try:
             response = requests.get(models_url, timeout=10)
@@ -115,17 +115,17 @@ def main(page: ft.Page):
             
             available_models = [model['id'] for model in models_data.get('data', [])]
             if not available_models:
-                show_snackbar("Keine Modelle in der Antwort von LM Studio gefunden.", ft.colors.ORANGE)
+                show_snackbar("Keine Modelle in der Antwort von LM Studio gefunden.", ft.Colors.ORANGE)
                 return
 
             model_name_combobox.options = [ft.dropdown.Option(model) for model in available_models]
-            show_snackbar(f"{len(available_models)} Modelle von LM Studio geladen.", ft.colors.GREEN)
+            show_snackbar(f"{len(available_models)} Modelle von LM Studio geladen.", ft.Colors.GREEN)
             page.update()
 
         except requests.exceptions.RequestException as err:
-            show_snackbar(f"Fehler beim Abrufen der Modelle: {err}", ft.colors.RED)
+            show_snackbar(f"Fehler beim Abrufen der Modelle: {err}", ft.Colors.RED)
         except Exception as err:
-            show_snackbar(f"Ein unerwarteter Fehler ist aufgetreten: {err}", ft.colors.RED)
+            show_snackbar(f"Ein unerwarteter Fehler ist aufgetreten: {err}", ft.Colors.RED)
 
     def remove_category_widget(widget_to_remove):
         categories_column.controls.remove(widget_to_remove)
@@ -177,19 +177,19 @@ def main(page: ft.Page):
     def save_config(e):
         config = read_config_from_gui()
         if config_manager.save_config(config):
-            show_snackbar("Konfiguration erfolgreich gespeichert.", ft.colors.GREEN)
+            show_snackbar("Konfiguration erfolgreich gespeichert.", ft.Colors.GREEN)
         else:
-            show_snackbar("Fehler beim Speichern der Konfiguration.", ft.colors.RED)
+            show_snackbar("Fehler beim Speichern der Konfiguration.", ft.Colors.RED)
 
     def load_config(e):
         config_manager.load_config()
         apply_config_to_gui(config_manager.get_current_config())
-        show_snackbar("Konfiguration geladen.", ft.colors.BLUE)
+        show_snackbar("Konfiguration geladen.", ft.Colors.BLUE)
 
     def reset_config(e):
         default_config = config_manager.get_default_config()
         apply_config_to_gui(default_config)
-        show_snackbar("Konfiguration auf Standardwerte zurückgesetzt.", ft.colors.BLUE)
+        show_snackbar("Konfiguration auf Standardwerte zurückgesetzt.", ft.Colors.BLUE)
 
     def show_snackbar(message, color):
         page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
@@ -215,7 +215,7 @@ def main(page: ft.Page):
         pdf_dir = config.get("pdf_dir")
         
         if not pdf_dir or not os.path.isdir(pdf_dir):
-            show_snackbar("Fehler: Bitte wählen Sie ein gültiges PDF-Verzeichnis aus.", ft.colors.RED)
+            show_snackbar("Fehler: Bitte wählen Sie ein gültiges PDF-Verzeichnis aus.", ft.Colors.RED)
             return
 
         # Further validation as in the original GUI
@@ -298,11 +298,11 @@ def main(page: ft.Page):
 
             process.wait()
             status_info_label.value = "Status: Processing Complete"
-            show_snackbar("✅ Verarbeitung abgeschlossen.", ft.colors.GREEN)
+            show_snackbar("✅ Verarbeitung abgeschlossen.", ft.Colors.GREEN)
 
         except Exception as ex:
             status_info_label.value = "Status: Error"
-            show_snackbar(f"❌ Fehler bei der Verarbeitung: {ex}", ft.colors.RED)
+            show_snackbar(f"❌ Fehler bei der Verarbeitung: {ex}", ft.Colors.RED)
         finally:
             progress_bar.visible = False
             set_ui_enabled(True)
@@ -323,7 +323,7 @@ def main(page: ft.Page):
 
     # --- Layout ---
     page.add(
-        ft.AppBar(title=ft.Text("PDF Organizer & Renamer"), bgcolor=ft.colors.SURFACE_VARIANT),
+        ft.AppBar(title=ft.Text("PDF Organizer & Renamer"), bgcolor=ft.Colors.SURFACE_VARIANT),
         ft.Tabs(
             selected_index=0,
             animation_duration=300,
@@ -343,9 +343,9 @@ def main(page: ft.Page):
                                 ft.Text("Base Prompt Vorlage", style=ft.TextThemeStyle.HEADLINE_SMALL),
                                 base_prompt_input,
                                 ft.ExpansionPanelList(
-                                    expand_icon_color=ft.colors.BLUE_GREY_500,
+                                    expand_icon_color=ft.Colors.BLUE_GREY_500,
                                     elevation=4,
-                                    divider_color=ft.colors.OUTLINE,
+                                    divider_color=ft.Colors.OUTLINE,
                                     controls=[
                                         ft.ExpansionPanel(
                                             header=ft.ListTile(title=ft.Text("Dynamische Kategorien")),
