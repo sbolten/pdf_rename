@@ -8,19 +8,27 @@ import subprocess
 import sys
 import threading
 from configuration import ConfigManager
+import pdf_processor
 
-class CategoryControl(Control):
+class CategoryControl(ft.Container):
     """A Flet control for a single category's configuration."""
     def __init__(self, name="", directory="", prompt="", active=True, on_remove=None):
         super().__init__()
         self.category_name = name
         self.on_remove = on_remove
         
-        self.active_checkbox = ft.Checkbox(label="Aktiv", value=active)
-        self.remove_button = ft.IconButton(icon=ft.Icons.DELETE, on_click=self.remove_clicked, tooltip="Kategorie entfernen")
-        self.name_input = ft.TextField(label="Name", value=name, hint_text="Name der Kategorie (z.B. STEUER)")
-        self.directory_input = ft.TextField(label="Verzeichnis", value=directory, hint_text="Zielverzeichnis (z.B. Steuerunterlagen)")
-        self.prompt_input = ft.TextField(label="Prompt", value=prompt, multiline=True, min_lines=3, hint_text="Prompt-Kriterien für diese Kategorie...")
+        self.active_checkbox = ft.Checkbox(label="Aktiv", value=active, scale=0.9)
+        self.remove_button = ft.IconButton(
+            icon=ft.Icons.DELETE_OUTLINE, 
+            selected_icon=ft.Icons.DELETE,
+            on_click=self.remove_clicked, 
+            tooltip="Kategorie entfernen", 
+            icon_size=20,
+            icon_color=ft.Colors.ERROR
+        )
+        self.name_input = ft.TextField(label="Name", value=name, hint_text="Name (z.B. STEUER)", dense=True, text_size=13, expand=True, border=ft.InputBorder.UNDERLINE)
+        self.directory_input = ft.TextField(label="Verzeichnis", value=directory, hint_text="Zielverzeichnis", dense=True, text_size=13, expand=True, border=ft.InputBorder.UNDERLINE)
+        self.prompt_input = ft.TextField(label="Prompt", value=prompt, multiline=True, min_lines=2, max_lines=5, hint_text="Prompt-Kriterien...", text_size=13, border=ft.InputBorder.OUTLINE)
 
         # Make the 'OTHER' category non-removable and always active
         if name.upper() == 'OTHER':
@@ -29,42 +37,45 @@ class CategoryControl(Control):
             self.remove_button.disabled = True
             self.name_input.read_only = True
 
+        self.padding = 15
+        self.bgcolor = ft.Colors.SURFACE_CONTAINER_HIGHEST
+        self.border_radius = 10
+        self.content = ft.Column(
+            spacing=10,
+            controls=[
+                ft.Row([
+                    self.active_checkbox, 
+                    ft.Container(content=ft.Text(name, weight=ft.FontWeight.BOLD, size=14), padding=ft.padding.only(left=10)),
+                    ft.Container(expand=True), 
+                    self.remove_button
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Row([self.name_input, self.directory_input], spacing=15),
+                self.prompt_input,
+            ]
+        )
+
     def remove_clicked(self, e):
         if self.on_remove:
             self.on_remove(self)
 
-    def build(self):
-        return ft.Container(
-            padding=15,
-            border=ft.border.all(1, ft.colors.OUTLINE),
-            border_radius=8,
-            content=ft.Column(
-                controls=[
-                    ft.Row([self.active_checkbox, ft.Container(expand=True), self.remove_button]),
-                    self.name_input,
-                    self.directory_input,
-                    self.prompt_input,
-                ]
-            )
-        )
-
 def main(page: ft.Page):
-    page.title = "PDF Organizer & Renamer (Flet)"
+    page.title = "PDF Organizer & Renamer"
     page.vertical_alignment = ft.MainAxisAlignment.START
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-    page.theme_mode = ft.ThemeMode.LIGHT
-    page.window_width = 950
-    page.window_height = 850
+    page.theme_mode = ft.ThemeMode.DARK
+    page.theme = ft.Theme(color_scheme_seed=ft.Colors.INDIGO)
+    page.window_width = 1000
+    page.window_height = 900
 
     config_manager = ConfigManager()
     
     # --- UI Controls ---
-    pdf_dir_input = ft.TextField(label="PDF Verzeichnis", expand=True)
-    target_url_input = ft.TextField(label="Target URL")
-    model_name_combobox = ft.Dropdown(label="Modellname")
-    base_prompt_input = ft.TextField(label="Base Prompt Vorlage", multiline=True, min_lines=5)
+    pdf_dir_input = ft.TextField(label="PDF Verzeichnis", expand=True, dense=True, text_size=14, border=ft.InputBorder.OUTLINE)
+    target_url_input = ft.TextField(label="Target URL", expand=True, dense=True, text_size=14, border=ft.InputBorder.OUTLINE)
+    model_name_combobox = ft.Dropdown(label="Modellname", expand=True, dense=True, text_size=14, border=ft.InputBorder.OUTLINE)
+    base_prompt_input = ft.TextField(label="Base Prompt Vorlage", multiline=True, min_lines=5, text_size=14, border=ft.InputBorder.OUTLINE)
     
-    categories_column = ft.Column(spacing=10)
+    categories_column = ft.Column(spacing=15)
     
     output_table = ft.DataTable(
         columns=[
@@ -98,7 +109,7 @@ def main(page: ft.Page):
     def fetch_lm_studio_models(e):
         lm_studio_url = target_url_input.value.strip()
         if not lm_studio_url:
-            show_snackbar("Bitte geben Sie zuerst die LM Studio Target URL an.", ft.colors.RED)
+            show_snackbar("Bitte geben Sie zuerst die LM Studio Target URL an.", ft.Colors.RED)
             return
 
         if not lm_studio_url.endswith('/v1'):
@@ -106,7 +117,7 @@ def main(page: ft.Page):
             target_url_input.value = lm_studio_url
         
         models_url = f"{lm_studio_url}/models"
-        show_snackbar(f"Versuche, Modelle von {models_url} abzurufen...", ft.colors.BLUE)
+        show_snackbar(f"Versuche, Modelle von {models_url} abzurufen...", ft.Colors.BLUE)
 
         try:
             response = requests.get(models_url, timeout=10)
@@ -115,17 +126,17 @@ def main(page: ft.Page):
             
             available_models = [model['id'] for model in models_data.get('data', [])]
             if not available_models:
-                show_snackbar("Keine Modelle in der Antwort von LM Studio gefunden.", ft.colors.ORANGE)
+                show_snackbar("Keine Modelle in der Antwort von LM Studio gefunden.", ft.Colors.ORANGE)
                 return
 
             model_name_combobox.options = [ft.dropdown.Option(model) for model in available_models]
-            show_snackbar(f"{len(available_models)} Modelle von LM Studio geladen.", ft.colors.GREEN)
+            show_snackbar(f"{len(available_models)} Modelle von LM Studio geladen.", ft.Colors.GREEN)
             page.update()
 
         except requests.exceptions.RequestException as err:
-            show_snackbar(f"Fehler beim Abrufen der Modelle: {err}", ft.colors.RED)
+            show_snackbar(f"Fehler beim Abrufen der Modelle: {err}", ft.Colors.RED)
         except Exception as err:
-            show_snackbar(f"Ein unerwarteter Fehler ist aufgetreten: {err}", ft.colors.RED)
+            show_snackbar(f"Ein unerwarteter Fehler ist aufgetreten: {err}", ft.Colors.RED)
 
     def remove_category_widget(widget_to_remove):
         categories_column.controls.remove(widget_to_remove)
@@ -177,19 +188,19 @@ def main(page: ft.Page):
     def save_config(e):
         config = read_config_from_gui()
         if config_manager.save_config(config):
-            show_snackbar("Konfiguration erfolgreich gespeichert.", ft.colors.GREEN)
+            show_snackbar("Konfiguration erfolgreich gespeichert.", ft.Colors.GREEN)
         else:
-            show_snackbar("Fehler beim Speichern der Konfiguration.", ft.colors.RED)
+            show_snackbar("Fehler beim Speichern der Konfiguration.", ft.Colors.RED)
 
     def load_config(e):
         config_manager.load_config()
         apply_config_to_gui(config_manager.get_current_config())
-        show_snackbar("Konfiguration geladen.", ft.colors.BLUE)
+        show_snackbar("Konfiguration geladen.", ft.Colors.BLUE)
 
     def reset_config(e):
         default_config = config_manager.get_default_config()
         apply_config_to_gui(default_config)
-        show_snackbar("Konfiguration auf Standardwerte zurückgesetzt.", ft.colors.BLUE)
+        show_snackbar("Konfiguration auf Standardwerte zurückgesetzt.", ft.Colors.BLUE)
 
     def show_snackbar(message, color):
         page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
@@ -215,7 +226,7 @@ def main(page: ft.Page):
         pdf_dir = config.get("pdf_dir")
         
         if not pdf_dir or not os.path.isdir(pdf_dir):
-            show_snackbar("Fehler: Bitte wählen Sie ein gültiges PDF-Verzeichnis aus.", ft.colors.RED)
+            show_snackbar("Fehler: Bitte wählen Sie ein gültiges PDF-Verzeichnis aus.", ft.Colors.RED)
             return
 
         # Further validation as in the original GUI
@@ -250,62 +261,45 @@ def main(page: ft.Page):
             category_map = {cat['name']: cat['directory'] for cat in valid_active_categories}
             category_map_json = json.dumps(category_map)
 
-            script_path = os.path.join(os.path.dirname(__file__), "pdf_processor.py")
-            command = [
-                sys.executable, script_path, pdf_dir, target_url, model_name,
-                assembled_prompt, category_map_json
-            ]
-
             pdf_files = list(pathlib.Path(pdf_dir).glob("*.pdf"))
             total_pdfs = len(pdf_files)
-            processed_pdfs = 0
+            processed_pdfs_count = [0] # Mutable list to track count in inner function
 
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+            def progress_callback(data):
+                output_table.rows.append(
+                    ft.DataRow(cells=[
+                        ft.DataCell(ft.Text(data.get('original_filename', ''))),
+                        ft.DataCell(ft.Text(data.get('checksum', ''))),
+                        ft.DataCell(ft.Text(data.get('new_filename', ''))),
+                        ft.DataCell(ft.Text(data.get('status', ''))),
+                        ft.DataCell(ft.Text(data.get('target_folder', ''))),
+                        ft.DataCell(ft.Text(data.get('error_message', ''))),
+                    ])
+                )
+                processed_pdfs_count[0] += 1
+                if total_pdfs > 0:
+                    progress_bar.value = processed_pdfs_count[0] / total_pdfs
+                page.update()
+
+            pdf_processor.process_pdfs(
+                pdf_dir,
+                target_url,
+                model_name,
+                assembled_prompt,
+                category_map_json,
+                progress_callback=progress_callback
             )
 
-            # Read stdout line by line
-            while True:
-                line = process.stdout.readline()
-                if not line:
-                    break
-                
-                line = line.strip()
-                if "Original Filename" in line or not line:
-                    continue
-                
-                parts = line.split('|')
-                if len(parts) == 6:
-                    output_table.rows.append(
-                        ft.DataRow(cells=[ft.DataCell(ft.Text(p.strip())) for p in parts])
-                    )
-                    processed_pdfs += 1
-                    if total_pdfs > 0:
-                        progress_bar.value = processed_pdfs / total_pdfs
-                    page.update()
-
-            # Handle stderr
-            stderr_output = process.stderr.read()
-            if stderr_output:
-                # In a real app, you'd want to display this error more gracefully
-                print(f"Error from script: {stderr_output}")
-
-            process.wait()
             status_info_label.value = "Status: Processing Complete"
-            show_snackbar("✅ Verarbeitung abgeschlossen.", ft.colors.GREEN)
+            show_snackbar("✅ Verarbeitung abgeschlossen.", ft.Colors.GREEN)
 
         except Exception as ex:
             status_info_label.value = "Status: Error"
-            show_snackbar(f"❌ Fehler bei der Verarbeitung: {ex}", ft.colors.RED)
+            show_snackbar(f"❌ Fehler bei der Verarbeitung: {ex}", ft.Colors.RED)
         finally:
             progress_bar.visible = False
             set_ui_enabled(True)
+            page.update()
 
 
     # --- Buttons ---
@@ -323,41 +317,53 @@ def main(page: ft.Page):
 
     # --- Layout ---
     page.add(
-        ft.AppBar(title=ft.Text("PDF Organizer & Renamer"), bgcolor=ft.colors.SURFACE_VARIANT),
+        ft.AppBar(title=ft.Text("PDF Organizer & Renamer"), bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST),
         ft.Tabs(
             selected_index=0,
             animation_duration=300,
             tabs=[
                 ft.Tab(
                     text="Konfiguration",
-                    icon=ft.icons.SETTINGS,
+                    icon=ft.Icons.SETTINGS,
                     content=ft.Container(
                         padding=20,
                         content=ft.Column(
-                            spacing=15,
+                            scroll=ft.ScrollMode.AUTO,
+                            spacing=20,
                             controls=[
-                                ft.Text("Allgemeine Konfiguration", style=ft.TextThemeStyle.HEADLINE_SMALL),
-                                ft.Row([pdf_dir_input, browse_pdf_dir_button]),
-                                target_url_input,
-                                ft.Row([model_name_combobox, fetch_models_button]),
-                                ft.Text("Base Prompt Vorlage", style=ft.TextThemeStyle.HEADLINE_SMALL),
-                                base_prompt_input,
-                                ft.ExpansionPanelList(
-                                    expand_icon_color=ft.colors.BLUE_GREY_500,
-                                    elevation=4,
-                                    divider_color=ft.colors.OUTLINE,
-                                    controls=[
-                                        ft.ExpansionPanel(
-                                            header=ft.ListTile(title=ft.Text("Dynamische Kategorien")),
-                                            content=ft.Container(
-                                                padding=10,
-                                                content=ft.Column([
-                                                    categories_column,
-                                                    add_category_button
-                                                ])
-                                            )
-                                        )
-                                    ]
+                                ft.Card(
+                                    content=ft.Container(
+                                        padding=20,
+                                        content=ft.Column([
+                                            ft.Text("Allgemeine Einstellungen", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.BOLD),
+                                            ft.Divider(),
+                                            ft.Row([pdf_dir_input, browse_pdf_dir_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                            ft.Row([target_url_input, model_name_combobox, fetch_models_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                        ], spacing=15)
+                                    )
+                                ),
+                                ft.Card(
+                                    content=ft.Container(
+                                        padding=20,
+                                        content=ft.Column([
+                                            ft.Text("Prompt Engineering", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.BOLD),
+                                            ft.Divider(),
+                                            base_prompt_input,
+                                        ], spacing=15)
+                                    )
+                                ),
+                                ft.Card(
+                                    content=ft.Container(
+                                        padding=20,
+                                        content=ft.Column([
+                                            ft.Row([
+                                                ft.Text("Kategorien", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.BOLD),
+                                                add_category_button
+                                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                            ft.Divider(),
+                                            categories_column
+                                        ], spacing=15)
+                                    )
                                 ),
                                 ft.Row(
                                     alignment=ft.MainAxisAlignment.CENTER,
@@ -369,10 +375,11 @@ def main(page: ft.Page):
                 ),
                 ft.Tab(
                     text="Verarbeitung",
-                    icon=ft.icons.PLAY_ARROW,
+                    icon=ft.Icons.PLAY_ARROW,
                     content=ft.Container(
                         padding=20,
                         content=ft.Column(
+                            scroll=ft.ScrollMode.AUTO,
                             spacing=15,
                             controls=[
                                 ft.Row(
@@ -395,4 +402,4 @@ def main(page: ft.Page):
     )
 
 if __name__ == "__main__":
-    ft.app(target=main, port=8001)
+    ft.app(target=main)
